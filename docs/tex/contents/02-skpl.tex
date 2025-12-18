@@ -1,0 +1,53 @@
+\chapter{Spesifikasi Kebutuhan Perangkat Lunak}
+
+\section{Deskripsi Kebutuhan}
+Sistem \textit{JagaWarga} dirancang untuk memfasilitasi pelaporan permasalahan warga di lingkungan perkotaan dengan populasi besar. Sistem ini memastikan setiap laporan diteruskan secara tepat sasaran kepada pihak berwenang terkait, menjaga privasi pelapor melalui fitur anonimitas, serta menyediakan mekanisme pemantauan kinerja bagi otoritas tertinggi. Berdasarkan kebutuhan klien, sistem ini harus diimplementasikan menggunakan arsitektur terdistribusi untuk menjamin kualitas layanan pada skala besar.
+
+\section{Kebutuhan Fungsional Produk}
+Berikut adalah daftar kebutuhan fungsional yang harus dipenuhi oleh sistem:
+
+\begin{enumerate}[label=\textbf{FR-\arabic*}, leftmargin=1.5cm]
+    \item Warga dapat melaporkan masalah dalam bentuk laporan tertulis yang dilengkapi dengan lokasi dan multimedia. Laporan dapat bersifat \textit{publik}, \textit{privat}, atau \textit{anonim} (\textit{whistleblowing}).
+    \item Warga dapat mengelola laporan pribadi serta memantau status penyelesaiannya.
+    \item Warga dapat melihat laporan publik lain dan memberikan \textit{upvote} sebagai bentuk dukungan.
+    \item Sistem dapat mengirimkan notifikasi kepada pelapor saat terdapat kemajuan pada penyelesaian laporan.
+    \item Pihak berwenang dapat memantau dan merespon masalah yang terkait dengan kewenangannya secara \textit{real-time}.
+    \item Pihak berwenang dapat melakukan analisis data terkait masalah-masalah yang dilaporkan.
+    \item Pihak berwenang dapat meneruskan laporan ke aplikasi atau sistem eksternal yang sudah ada.
+    \item Sistem dapat mengeskalasi laporan ke pihak dengan kewenangan lebih tinggi apabila tidak berhasil ditangani dalam waktu tertentu.
+    \item Kewenangan tertinggi dapat memantau kinerja bawahan dalam menanggapi masalah yang dilaporkan.
+\end{enumerate}
+
+\section{Kebutuhan Non-fungsional Produk}
+Kebutuhan non-fungsional atau atribut kualitas yang wajib dipenuhi adalah sebagai berikut:
+
+\subsection{Keamanan (\textit{Security})}
+\begin{enumerate}[label=\textbf{NFR-S\arabic*}, leftmargin=1.7cm]
+    \item \textbf{Pemisahan Masalah:} Pihak penerima laporan hanya dapat melihat masalah di bawah wewenangnya (isolasi data berdasarkan jenis masalah).
+    \item \textbf{Anonimitas:} Pelapor dapat memberikan laporan tanpa identitas yang dapat dilacak.
+    \item \textbf{Validasi Identitas:} Sistem mampu memvalidasi identitas pelapor untuk memastikan data tidak dipalsukan.
+    \item \textbf{Proteksi Data Pribadi:} Sistem wajib menghilangkan seluruh data pribadi pada pembuat laporan anonim.
+    \item \textbf{Keamanan Data:} Menjaga keamanan data baik saat dikirimkan (\textit{in-transit}) maupun saat disimpan (\textit{at-rest}).
+\end{enumerate}
+
+\subsection{Keandalan (\textit{Reliability})}
+\begin{enumerate}[label=\textbf{NFR-R\arabic*}, leftmargin=1.7cm]
+    \item \textbf{Fault Isolation:} Kegagalan pada satu \textit{instance} atau komponen tidak menyebabkan kegagalan total pada keseluruhan aplikasi.
+\end{enumerate}
+
+\subsection{Skalabilitas (\textit{Scalability})}
+\begin{enumerate}[label=\textbf{NFR-SC\arabic*}, leftmargin=1.7cm]
+    \item \textbf{Lonjakan Beban:} Mampu menangani lonjakan beban pengguna yang mendadak dan tidak terduga.
+    \item \textbf{Efisiensi Sumber Daya:} Mampu mengurangi penggunaan sumber daya ketika beban sedang rendah.
+\end{enumerate}
+
+\subsection{Kinerja (\textit{Performance})}
+\begin{enumerate}[label=\textbf{NFR-P\arabic*}, leftmargin=1.7cm]
+    \item \textbf{Response Time:} Memberikan waktu respon sistem yang memuaskan bagi pengguna.
+\end{enumerate}
+
+\subsection{Observabilitas (\textit{Observability})}
+\begin{enumerate}[label=\textbf{NFR-O\arabic*}, leftmargin=1.7cm]
+    \item \textbf{Monitoring Sistem:} Memungkinkan tim infrastruktur memantau kinerja keseluruhan dan melacak lalu lintas antar komponen.
+    \item \textbf{Monitoring Keamanan:} Memungkinkan tim keamanan memantau lalu lintas sistem dengan tetap menjaga privasi pengguna.
+\end{enumerate}

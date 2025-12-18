@@ -1,0 +1,25 @@
+\chapter{Pendahuluan}
+
+\section{Latar Belakang}
+Pertumbuhan populasi perkotaan yang pesat membawa tantangan besar dalam pengelolaan infrastruktur, keamanan, dan kebersihan lingkungan. Kota dengan estimasi penduduk sebanyak 2,5 juta jiwa memerlukan mekanisme komunikasi yang efisien antara warga dan pemerintah. Sistem pelaporan masalah konvensional seringkali mengalami hambatan dalam hal kecepatan respon, transparansi status, dan ketepatan distribusi laporan ke pihak yang berwenang.
+
+Aplikasi JagaWarga dirancang sebagai platform pelaporan terintegrasi yang memungkinkan warga melaporkan permasalahan mulai dari kriminalitas hingga perawatan fasilitas umum. Namun, mengelola basis pengguna sebesar 2,5 juta dengan volume data multimedia yang masif dan kebutuhan akan fitur privasi (anonimitas) menimbulkan kompleksitas teknis yang signifikan. Arsitektur monolitik dianggap tidak lagi memadai untuk menangani kebutuhan ini karena keterbatasan dalam skalabilitas horizontal dan risiko \textit{single point of failure}.
+
+
+\section{Identifikasi Masalah}
+Berdasarkan latar belakang tersebut, permasalahan utama yang diidentifikasi dalam pengembangan sistem ini adalah:
+\begin{enumerate}
+    \item \textbf{Skalabilitas Sistem:} Bagaimana menangani lonjakan beban laporan yang mendadak dari jutaan pengguna tanpa menurunkan performa aplikasi secara keseluruhan.
+    \item \textbf{Isolasi Data dan Keamanan:} Bagaimana memastikan laporan hanya dapat diakses oleh instansi yang berwenang (misal: Dinas Kebersihan tidak dapat melihat laporan kriminalitas) serta menjamin anonimitas bagi \textit{whistleblower}.
+    \item \textbf{Reliabilitas dan Ketersediaan:} Bagaimana merancang sistem yang tetap berfungsi meskipun salah satu komponen atau layanan mengalami kegagalan.
+    \item \textbf{Eskalasi dan Pemantauan:} Bagaimana mengotomatisasi proses eskalasi laporan yang tidak tertangani serta memungkinkan otoritas tertinggi memantau kinerja jajaran di bawahnya secara \textit{real-time}.
+\end{enumerate}
+
+\section{Tujuan Tugas Besar}
+Tujuan dari perancangan dan implementasi \textit{Proof-of-Concept} (PoC) pada tugas besar ini adalah:
+\begin{enumerate}
+    \item Merancang arsitektur aplikasi terdistribusi yang mampu memenuhi aspek keamanan, keandalan, dan skalabilitas.
+    \item Mengimplementasikan sistem pelaporan yang mendukung berbagai tingkat privasi (publik, privat, anonim).
+    \item Menerapkan mekanisme \textit{observability} untuk memantau trafik dan performa antar komponen sistem.
+    \item Membuktikan efektivitas arsitektur terdistribusi dalam menangani fungsionalitas kritis seperti eskalasi otomatis dan isolasi data.
+\end{enumerate}

@@ -1,0 +1,334 @@
+\chapter{Perancangan Sistem}
+
+\section{Deskripsi Umum Sistem}
+Sistem \textit{JagaWarga} dirancang dengan pendekatan arsitektur \textit{microservices} untuk menangani kompleksitas pelaporan warga pada kota berpenduduk 2,5 juta jiwa. Berbeda dengan pendekatan monolitik, sistem ini memecah fungsionalitas utama menjadi layanan-layanan kecil yang independen dan saling berkomunikasi melalui protokol jaringan. Hal ini dilakukan untuk menjamin bahwa lonjakan beban pada satu fitur (misalnya lonjakan pelaporan saat banjir) tidak melumpuhkan fungsi lain seperti analisis data oleh pihak berwenang.
+
+
+
+Secara garis besar, sistem terdiri dari beberapa komponen utama yang bekerja secara terintegrasi:
+\begin{enumerate}
+    \item \textbf{Edge Layer (Gateway):} Bertindak sebagai pintu masuk tunggal bagi seluruh permintaan dari aplikasi warga dan portal dinas. Di lapisan ini dilakukan \textit{rate limiting} dan \textit{load balancing} untuk menjaga stabilitas sistem dari beban mendadak.
+    \item \textbf{Core Services:} Terdiri dari kumpulan layanan yang menangani logika bisnis inti. 
+    \begin{itemize}
+        \item \textit{Identity Service} mengelola validasi pengguna.
+        \item \textit{Report Service} mengelola siklus hidup laporan.
+        \item \textit{Anonymizer Proxy} memastikan data pelapor anonim dibersihkan sebelum disimpan di basis data laporan.
+    \end{itemize}
+    \item \textbf{Asynchronous Processing:} Menggunakan \textit{Message Broker} sebagai jembatan komunikasi antar-layanan yang tidak bersifat \textit{blocking}. Misalnya, ketika laporan dibuat, \textit{Notification Service} akan mengirimkan notifikasi tanpa menunggu proses penyimpanan data selesai sepenuhnya.
+    \item \textbf{Escalation \& Monitoring Engine:} Sebuah \textit{worker background} yang secara aktif memantau \textit{SLA (Service Level Agreement)} setiap laporan. Jika suatu instansi tidak merespon dalam waktu yang ditentukan, sistem secara otomatis akan melakukan \textit{event} eskalasi ke jenjang otoritas di atasnya.
+\end{enumerate}
+
+
+
+Alur kerja sistem dimulai ketika warga mengirimkan laporan melalui aplikasi. Laporan tersebut divalidasi identitasnya, lalu diarahkan ke layanan penyimpanan yang sesuai. Jika laporan bersifat anonim, sistem akan menjalankan prosedur \textit{stripping} pada \textit{Personally Identifiable Information} (PII). Laporan yang telah tersimpan kemudian didistribusikan ke dinas terkait melalui sistem antrean pesan, memastikan bahwa setiap instansi hanya menerima informasi yang berada di bawah wewenang hukumnya.
+
+\section{Arsitektur Sistem}
+Perancangan arsitektur \textit{JagaWarga} mengadopsi pola \textit{Microservices} yang terdesentralisasi. Setiap komponen dirancang untuk memiliki tanggung jawab tunggal (\textit{Single Responsibility Principle}) dan memiliki basis data sendiri (\textit{Database-per-service}) untuk menjamin isolasi data sesuai kebutuhan \textbf{NFR-S1}.
+
+\subsection{Diagram Arsitektur Logis}
+Diagram berikut menunjukkan pembagian fungsionalitas sistem ke dalam beberapa layanan mandiri:
+
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[
+        node distance=1.5cm and 2cm,
+        box/.style={rectangle, draw, fill=blue!5, text width=2.5cm, align=center, minimum height=1cm, rounded corners, font=\small},
+        db/.style={cylinder, draw, shape border rotate=90, fill=orange!10, text width=1.2cm, align=center, minimum height=1.5cm, font=\scriptsize},
+        broker/.style={rectangle, draw, fill=green!10, text width=6cm, align=center, minimum height=0.8cm, dashed, font=\small\bfseries},
+        arrow/.style={-Stealth, thick}
+    ]
+
+    % Aktor
+    \node (user) [box, fill=gray!10] {Warga / Dinas / Walikota};
+    
+    % Gateway
+    \node (gateway) [box, below=of user, fill=blue!20] {\textbf{API Gateway}\\ \scriptsize (Rate Limit, Auth)};
+
+    % Services
+    \node (auth) [box, below left=of gateway] {Identity Service};
+    \node (anonymizer) [box, below=of gateway] {Anonymizer Service};
+    \node (report) [box, below right=of gateway] {Report Service};
+    
+    % Databases
+    \node (db_auth) [db, below=of auth] {DB Auth};
+    \node (db_report) [db, below=of report] {DB Report};
+
+    % Message Broker
+    \node (nats) [broker, below=2.5cm of anonymizer] {Message Broker (NATS / RabbitMQ)};
+
+    % Worker Services
+    \node (notif) [box, below left=1cm of nats] {Notification Service};
+    \node (escalation) [box, below right=1cm of nats] {Escalation Service};
+
+    % Garis Hubung
+    \draw [arrow] (user) -- (gateway);
+    \draw [arrow] (gateway) -- (auth);
+    \draw [arrow] (gateway) -- (anonymizer);
+    \draw [arrow] (gateway) -- (report);
+    
+    \draw [arrow, dashed] (auth) -- (db_auth);
+    \draw [arrow, dashed] (report) -- (db_report);
+    
+    \draw [arrow] (report) -- (nats) node[midway, right, font=\tiny] {Event: Created};
+    \draw [arrow] (anonymizer) -- (report) node[midway, left, font=\tiny] {Clean Data};
+    
+    \draw [arrow] (nats) -- (notif);
+    \draw [arrow] (nats) -- (escalation);
+
+    \end{tikzpicture}
+    \caption{Diagram Arsitektur Logis JagaWarga}
+    \label{fig:arch_logic}
+\end{figure}
+
+\begin{enumerate}
+    \item \textbf{API Gateway:} Bertindak sebagai titik masuk tunggal. Bertanggung jawab atas \textit{routing}, \textit{authentication check}, dan \textit{rate limiting}.
+    \item \textbf{Identity Service:} Menangani pendaftaran dan validasi identitas warga untuk memastikan data pelapor asli (\textbf{NFR-S3}), namun tetap memisahkan kredensial dari data laporan.
+    \item \textbf{Report Service:} Mengelola penyimpanan dan pengambilan data laporan (teks, lokasi, multimedia).
+    \item \textbf{Anonymization Service:} Komponen krusial yang bertugas memotong relasi antara identitas pengguna dengan laporan jika kategori laporan dipilih sebagai "Anonim" (\textbf{NFR-S4}).
+    \item \textbf{Notification Service:} Mengirimkan pembaruan status laporan kepada warga secara \textit{asynchronous}.
+    \item \textbf{Escalation Service:} Layanan berbasis \textit{worker} yang memantau batas waktu penyelesaian laporan dan memicu perpindahan wewenang jika terjadi keterlambatan.
+\end{enumerate}
+
+\subsection{Pola Komunikasi Antar-Komponen}
+Sistem JagaWarga mengadopsi pendekatan \textit{hybrid communication} untuk menyeimbangkan antara kebutuhan \textit{user experience} yang responsif dan ketangguhan sistem secara keseluruhan.
+
+\subsubsection{Komunikasi Sinkron (Synchronous)}
+Komunikasi sinkron menggunakan protokol \textbf{REST} atau \textbf{gRPC} diterapkan pada alur kerja yang membutuhkan kepastian respon seketika (\textit{immediate consistency}).
+\begin{itemize}
+    \item \textbf{Penggunaan:} Interaksi antara \textit{Gateway} ke \textit{Identity Service} untuk autentikasi, serta pengambilan data laporan publik untuk tampilan utama aplikasi.
+    \item \textbf{Justifikasi (NFR-P1):} Protokol gRPC dipilih untuk komunikasi antar-layanan internal karena menggunakan \textit{Protocol Buffers} yang memiliki \textit{payload} lebih kecil dan latensi lebih rendah dibandingkan JSON tradisional, mendukung pencapaian target performa pada beban tinggi.
+\end{itemize}
+
+\subsubsection{Komunikasi Asinkron (Asynchronous)}
+Untuk proses yang bersifat intensif atau melibatkan banyak layanan turunan, digunakan pola \textit{Event-Driven} melalui \textbf{Message Broker}.
+\begin{itemize}
+    \item \textbf{Mekanisme:} Setelah \textit{Report Service} berhasil menyimpan data ke basis data, layanan tersebut akan mempublikasikan \textit{event} \texttt{ReportCreated} ke \textit{Message Broker}.
+    \item \textbf{Justifikasi (NFR-R1 \& NFR-SC1):} 
+    \begin{itemize}
+        \item \textbf{Decoupling:} \textit{Report Service} tidak perlu mengetahui keberadaan \textit{Notification Service} atau sistem eksternal lainnya. Ini memudahkan penambahan fitur baru di masa depan tanpa mengubah kode layanan inti.
+        \item \textbf{Resilience:} Jika terjadi lonjakan laporan warga secara mendadak, \textit{Message Broker} akan bertindak sebagai \textit{buffer}. Layanan pemroses (seperti \textit{Notification}) dapat mengambil pesan sesuai dengan kapasitas kemampuannya (\textit{backpressure handling}), sehingga sistem tidak tumbang akibat \textit{resource exhaustion}.
+    \end{itemize}
+\end{itemize}
+
+\subsubsection{Analisis Alur Interaksi Pelaporan Anonim}
+
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[
+        scale=0.8, transform shape,
+        obj/.style={rectangle, draw, fill=gray!10, text width=2cm, align=center, minimum height=3cm},
+        arrow/.style={-Stealth, thick}
+    ]
+
+    % Lifelines
+    \node (warga) [obj] {Warga};
+    \node (gw) [obj, right=1.5cm of warga] {Gateway};
+    \node (anon) [obj, right=1.5cm of gw, fill=red!5] {Anonymizer};
+    \node (rep) [obj, right=1.5cm of anon] {Report Service};
+    \node (nats) [obj, right=1.5cm of rep, fill=green!5] {Message Broker};
+
+    % Alur
+    \draw [arrow] ([yshift=1cm]warga.east) -- ([yshift=1cm]gw.west) node[midway, above, font=\tiny] {1. Submit Report (Anon)};
+    \draw [arrow] ([yshift=0.5cm]gw.east) -- ([yshift=0.5cm]anon.west) node[midway, above, font=\tiny] {2. Scrub PII};
+    \draw [arrow] ([yshift=0cm]anon.east) -- ([yshift=0cm]rep.west) node[midway, above, font=\tiny] {3. Save Clean Data};
+    \draw [arrow] ([yshift=-0.5cm]rep.east) -- ([yshift=-0.5cm]nats.west) node[midway, above, font=\tiny] {4. Publish Event};
+    
+    % Return
+    \draw [arrow, dashed] ([yshift=-1cm]rep.west) -- ([yshift=-1cm]warga.east) node[midway, below, font=\tiny] {5. Success Response};
+
+    \end{tikzpicture}
+    \caption{Diagram Interaksi Pelaporan Anonim (\textit{Whistleblowing})}
+    \label{fig:interaction_anon}
+\end{figure}
+
+Berdasarkan \textbf{Gambar \ref{fig:interaction_anon}}, sistem menerapkan prosedur keamanan berlapis untuk menjamin fitur \textit{whistleblowing}:
+\begin{enumerate}
+    \item \textbf{Submit Report:} Permintaan masuk melalui \textit{Gateway} yang melakukan validasi token JWT pelapor.
+    \item \textbf{PII Scrubbing:} Sebelum data menyentuh \textit{persistence layer}, \textit{Anonymizer Service} melakukan transformasi data. Informasi identitas pelapor dipisahkan secara fisik dan hanya ID acak (\textit{pseudonym}) yang diteruskan. Prosedur ini krusial untuk memenuhi \textbf{NFR-S4}.
+    \item \textbf{Early Success Response:} Sistem memberikan respon sukses kepada warga segera setelah data tersimpan di \textit{Report Service} (Langkah 5), tanpa menunggu notifikasi terkirim. Hal ini meminimalisir \textit{perceived latency} bagi pengguna.
+    \item \textbf{Post-Processing:} Pengiriman notifikasi dan pemicu eskalasi dilakukan sepenuhnya di latar belakang melalui \textit{Message Broker}. Jika \textit{Notification Service} sedang dalam masa \textit{maintenance}, pesan tetap aman tersimpan di antrean (\textit{durability}) dan akan diproses segera setelah layanan kembali aktif.
+\end{enumerate}
+
+\section{Pemilihan Teknologi}
+Dalam merancang sistem JagaWarga, dipilih pendekatan \textit{Polyglot Architecture} untuk memastikan setiap layanan menggunakan alat yang paling optimal sesuai dengan karakteristik bebannya. Berikut adalah rincian teknologi yang digunakan beserta justifikasinya terhadap kebutuhan fungsional (FR) dan non-fungsional (NFR):
+
+\subsection{Analisis Komponen 1: \textit{Backend Runtime} (Layanan Inti)}
+Layanan inti (\textit{core services}) bertanggung jawab atas manajemen laporan, logika eskalasi otomatis, dan integrasi antar-komponen. Mengingat beban target 2,5 juta penduduk, pemilihan \textit{runtime} menjadi krusial untuk menjamin \textit{throughput} tinggi dan \textit{fault tolerance}.
+
+\subsubsection{Alternatif Teknologi yang Memungkinkan}
+Dalam tahap perancangan, kami mengevaluasi tiga ekosistem yang memiliki rekam jejak kuat dalam arsitektur terdistribusi:
+\begin{enumerate}
+    \item \textbf{Node.js (V8 Engine):} Menggunakan model \textit{Event Loop single-threaded} yang sangat efisien untuk operasi I/O intensif namun memiliki batasan pada komputasi paralel murni.
+    \item \textbf{Go (Golang):} Bahasa pemrograman yang dikompilasi secara statis dengan fitur \textit{Goroutines}, sangat populer untuk \textit{cloud-native services} karena performa \textit{raw}-nya.
+    \item \textbf{Elixir (BEAM VM):} Bahasa fungsional yang berjalan di atas \textit{Erlang Virtual Machine}. Didesain sejak awal untuk sistem terdistribusi (\textit{distributed by nature}) dan \textit{soft real-time}.
+\end{enumerate}
+
+\subsubsection{\textit{Pros} dan \textit{Cons} Teknologi}
+Berikut adalah tabel perbandingan mendalam berdasarkan kriteria teknis yang relevan dengan aplikasi JagaWarga:
+
+\begin{table}[H]
+    \centering
+    \small
+    \begin{tabular}{@{} p{2.5cm} p{4.5cm} p{4.5cm} @{} }
+        \toprule
+        \textbf{Teknologi} & \textbf{\textit{Pros}} & \textbf{\textit{Cons}} \\ \midrule
+        \textbf{Node.js} & Ekosistem NPM yang masif; \textit{Development velocity} sangat cepat; sangat baik untuk aplikasi \textit{I/O bound}. & \textit{Single-threaded} per \textit{instance}; satu \textit{unhandled exception} dapat mematikan seluruh proses aplikasi. \\ \midrule
+        \textbf{Go} & Kompilasi cepat ke \textit{binary} tunggal; konkurensi murah melalui \textit{CSP (Communicating Sequential Processes)}; sangat cepat untuk tugas \textit{CPU-bound}. & Manajemen \textit{error} yang repetitif; tidak memiliki model \textit{fault isolation} bawaan di tingkat \textit{runtime} (bergantung pada orkestrasi luar). \\ \midrule
+        \textbf{Elixir} & \textit{Fault tolerance} tingkat tinggi melalui \textit{Supervisor Trees}; \textit{Hot code swapping}; tidak ada \textit{shared state} (menghindari \textit{race conditions}). & Paradigma fungsional memerlukan \textit{learning curve} tambahan; ekosistem \textit{library} lebih spesifik dan tidak sebanyak Node/Go. \\ \bottomrule
+    \end{tabular}
+    \caption{Perbandingan Mendalam \textit{Backend Runtime}}
+\end{table}
+
+\subsubsection{Kesesuaian dengan Aplikasi dan Justifikasi Arsitektural}
+Aplikasi JagaWarga memiliki dua tantangan kritis: lonjakan laporan mendadak (NFR-SC1) dan kebutuhan eskalasi otomatis yang tidak boleh berhenti meskipun terjadi error pada salah satu laporan (NFR-R1). 
+
+Kami mengacu pada filosofi \textbf{Joe Armstrong}, salah satu pencipta Erlang, yang menyatakan:
+\begin{quote}
+    \textit{"If you want to build a system that is reliable, you must build it out of parts that can fail without affecting the whole."}
+\end{quote}
+
+
+
+Filosofi ini diimplementasikan secara \textit{native} oleh Elixir melalui \textit{Supervisor Trees}. Jika proses eskalasi untuk satu laporan gagal (misalnya karena data korup), proses tersebut akan mati (\textit{crash}) secara terisolasi tanpa mengganggu jutaan proses laporan lainnya, dan akan segera dijalankan ulang (\textit{restart}) oleh \textit{Supervisor}. 
+
+Selain itu, penelitian dari tim \textit{engineering} \textbf{Discord} menunjukkan bahwa Elixir mampu menangani lebih dari 11 juta pengguna \textit{concurrent} dengan model \textit{Actor} yang dimilikinya. Hal ini sangat relevan untuk skenario kota dengan 2,5 juta warga, di mana efisiensi memori per proses jauh lebih penting daripada kecepatan CPU mentah.
+
+\subsubsection{Kesimpulan Teknologi Terpilih}
+Berdasarkan analisis di atas, kami memilih \textbf{Elixir (dengan Phoenix Framework)}. Meskipun Go menawarkan eksekusi yang lebih cepat untuk algoritma kompleks, Elixir memberikan \textbf{\textit{Availability}} dan \textbf{\textit{Resilience}} yang tidak tertandingi melalui \textit{BEAM VM}. Keputusan ini secara langsung menjawab tantangan keandalan dan skalabilitas yang menjadi syarat mutlak aplikasi sistem terdistribusi JagaWarga.
+
+\subsection{Analisis Komponen 2: Sistem Basis Data (\textit{Database})}
+Sistem basis data merupakan komponen kritikal yang menyimpan seluruh informasi laporan, metadata multimedia, dan data kewenangan instansi. Untuk kota dengan 2,5 juta penduduk, basis data harus mampu menangani volume data yang besar tanpa mengorbankan konsistensi dan ketersediaan (\textit{availability}).
+
+\subsubsection{Alternatif Teknologi yang Memungkinkan}
+Terdapat tiga kategori basis data yang dievaluasi untuk kebutuhan arsitektur terdistribusi JagaWarga:
+\begin{enumerate}
+    \item \textbf{PostgreSQL:} Basis data relasional (RDBMS) tradisional yang sangat matang dan mendukung transaksi ACID secara penuh.
+    \item \textbf{MongoDB:} Basis data NoSQL berbasis dokumen yang menawarkan skema fleksibel dan kemudahan dalam melakukan \textit{sharding}.
+    \item \textbf{CockroachDB:} Basis data \textit{Distributed SQL} yang dirancang untuk skala \textit{cloud-native} dengan arsitektur \textit{shared-nothing}.
+\end{enumerate}
+
+\subsubsection{\textit{Pros} dan \textit{Cons} Teknologi}
+Berikut adalah evaluasi mendalam terhadap ketiga kandidat basis data:
+
+\begin{table}[H]
+    \centering
+    \small
+    \begin{tabular}{@{} p{2.5cm} p{4.5cm} p{4.5cm} @{} }
+        \toprule
+        \textbf{Teknologi} & \textbf{\textit{Pros}} & \textbf{\textit{Cons}} \\ \midrule
+        \textbf{PostgreSQL} & Dukungan komunitas dan \textit{tooling} sangat luas; konsistensi data sangat terjamin; performa tinggi pada \textit{single-node}. & Sulit untuk melakukan \textit{horizontal scaling} secara otomatis; risiko \textit{single point of failure} tinggi tanpa manajemen \textit{failover} yang kompleks. \\ \midrule
+        \textbf{MongoDB} & Skema JSON-like yang fleksibel; performa tulis yang sangat cepat; \textit{native sharding}. & Konsistensi data sulit dijamin pada transaksi lintas dokumen (\textit{multi-document ACID}) dalam lingkungan terdistribusi. \\ \midrule
+        \textbf{CockroachDB} & \textit{Auto-sharding} dan replikasi otomatis; mendukung transaksi ACID penuh dalam skala terdistribusi; \textit{high availability} secara \textit{native}. & Memerlukan sumber daya memori dan CPU yang lebih besar dibandingkan PostgreSQL konvensional; latensi tulis sedikit lebih tinggi karena mekanisme konsensus. \\ \bottomrule
+    \end{tabular}
+    \caption{Perbandingan Sistem Basis Data}
+\end{table}
+
+\subsubsection{Kesesuaian dengan Aplikasi dan Justifikasi Arsitektural}
+Tantangan utama sistem JagaWarga adalah \textbf{NFR-SC1} (Skalabilitas) dan \textbf{NFR-R1} (Keandalan). Dalam teori \textbf{CAP Theorem} (Consistency, Availability, Partition Tolerance), sistem terdistribusi biasanya harus mengorbankan salah satu aspek. Namun, CockroachDB yang terinspirasi dari makalah \textbf{Google Spanner} berhasil menyeimbangkan ketiganya melalui protokol konsensus \textbf{Raft}.
+
+Dengan CockroachDB, jika terjadi lonjakan laporan mendadak dari 2,5 juta warga, tim infrastruktur cukup menambah node baru ke dalam klaster, dan basis data akan melakukan \textit{re-balancing} data secara otomatis tanpa \textit{downtime}. Selain itu, mekanisme replikasi 3-node menjamin bahwa jika satu pusat data mengalami kegagalan, sistem tetap dapat melayani permintaan warga tanpa kehilangan data sedikitpun.
+
+\subsubsection{Kesimpulan Teknologi Terpilih}
+Dipilih \textbf{CockroachDB} sebagai solusi penyimpanan utama. Meskipun PostgreSQL lebih familiar, kebutuhan akan \textit{horizontal scaling} yang mulus dan jaminan ketersediaan data pada skala kota besar menjadikan CockroachDB sebagai pilihan yang lebih superior untuk memenuhi standar arsitektur terdistribusi yang handal.
+
+\begin{table}[H]
+    \centering
+    \small
+    \begin{tabular}{@{} p{2.5cm} p{2.5cm} p{5.5cm} l @{}}
+        \toprule
+        \textbf{Komponen} & \textbf{Teknologi} & \textbf{Alasan Pemilihan} & \textbf{Ref. Req} \\ \midrule
+        \textbf{Core Service} (Report \& Escalation) & \textbf{Elixir} (Phoenix) & Memanfaatkan BEAM VM untuk \textit{fault tolerance} tinggi melalui \textit{supervisor trees}. Sangat efisien dalam menangani ribuan \textit{process} ringan secara konkuren. & NFR-R1, NFR-SC1, FR-8 \\ \midrule
+        \textbf{Identity \& Anonymizer} & \textbf{Bun} (ElysiaJS) & \textit{Runtime} berbasis Zig yang memiliki performa \textit{cold start} dan eksekusi sangat cepat. Mendukung \textit{end-to-end type safety} untuk validasi identitas dan \textit{PII scrubbing}. & NFR-P1, NFR-S2, NFR-S4 \\ \midrule
+        \textbf{Message Broker} & \textbf{NATS JetStream} & \textit{Cloud-native messaging system} yang sangat ringan namun mendukung persistensi data dan pola \textit{at-least-once delivery}. & NFR-R1, NFR-SC1, FR-4 \\ \midrule
+        \textbf{Main Database} & \textbf{CockroachDB} & \textit{Distributed SQL database} yang mendukung \textit{auto-sharding} dan replikasi data otomatis. Menjamin data tetap tersedia meskipun salah satu node pusat data mati. & NFR-SC1, NFR-S1, NFR-S5 \\ \midrule
+        \textbf{API Gateway} & \textbf{Traefik} & \textit{Edge router} yang mendukung konfigurasi dinamis, otomatisasi SSL/TLS, dan integrasi \textit{native} dengan orkestrasi kontainer. & NFR-S5, NFR-SC2 \\ \midrule
+        \textbf{Observability} & \textbf{Prometheus \& Grafana} & Standar industri untuk pengumpulan metrik deret waktu (\textit{time-series}) dan visualisasi performa sistem secara \textit{real-time}. & NFR-O1, NFR-O2 \\ \bottomrule
+    \end{tabular}
+    \caption{Tabel Justifikasi Pemilihan \textit{Tech Stack} JagaWarga}
+    \label{tab:tech_stack}
+\end{table}
+
+
+
+Pemilihan teknologi di atas didasarkan pada prinsip \textit{Survivability} dan \textit{High Scalability}. Penggunaan \textbf{Elixir} dan \textbf{CockroachDB} secara khusus menjawab tantangan pengelolaan 2,5 juta warga, di mana ketersediaan sistem (\textit{availability}) adalah prioritas utama. Sementara itu, penggunaan \textbf{Bun} pada layanan anonimitas memastikan proses transformasi data tidak menjadi hambatan (\textit{bottleneck}) bagi performa keseluruhan aplikasi (\textbf{NFR-P1}).
+
+\section{Perancangan Proof-of-Concept (PoC)}
+Mengingat kompleksitas sistem \textit{JagaWarga} secara keseluruhan, dilakukan pembatasan lingkup implementasi pada tahap \textit{Proof-of-Concept} (PoC). Fokus PoC adalah membuktikan bahwa arsitektur terdistribusi yang dirancang mampu menangani alur kerja paling kritis dengan tetap menjaga atribut kualitas yang dipersyaratkan.
+
+\subsection{Fungsionalitas Terpilih}
+Fungsionalitas yang dipilih untuk diimplementasikan dalam PoC adalah \textbf{"Alur Pelaporan Anonim dan Mekanisme Eskalasi Otomatis"}. Fitur ini mencakup beberapa kebutuhan fungsional yaitu:
+\begin{itemize}
+    \item \textbf{FR-1 (Pelaporan Anonim):} Warga mengirim laporan, identitas diproses oleh \textit{Anonymizer}, dan data disimpan tanpa tautan ke identitas asli.
+    \item \textbf{FR-5 (Respon Instansi):} Simulasi pihak berwenang menerima dan melihat laporan sesuai kategori.
+    \item \textbf{FR-8 (Eskalasi Otomatis):} \textit{Worker} mendeteksi laporan yang melewati batas waktu (\textit{timeout}) dan mengubah statusnya menjadi "Tereskalasi".
+\end{itemize}
+
+\subsection{Atribut Kualitas Terpilih}
+Atribut kualitas (kebutuhan non-fungsional) yang akan dibuktikan dalam PoC adalah:
+\begin{itemize}
+    \item \textbf{NFR-R1 (Keandalan/Fault Isolation):} Menunjukkan sistem tetap dapat menerima laporan meskipun salah satu layanan (misal: \textit{Notification Service}) sedang tidak tersedia.
+    \item \textbf{NFR-SC1 (Skalabilitas):} Membuktikan penggunaan antrean pesan (\textit{Message Broker}) untuk menangani lonjakan laporan tanpa membebani basis data secara sinkron.
+    \item \textbf{NFR-S4 (Proteksi Data Pribadi):} Memastikan \textit{data scrubbing} pada laporan anonim bekerja di tingkat \textit{backend}.
+\end{itemize}
+
+\subsection{Alasan Pemilihan}
+Pemilihan fitur dan kualitas di atas didasarkan pada argumen berikut:
+\begin{enumerate}
+    \item \textbf{Representasi Kompleksitas Terdistribusi:} Alur pelaporan anonim hingga eskalasi melibatkan interaksi antar-layanan (Bun, Elixir, dan NATS) serta manipulasi \textit{state} di basis data terdistribusi (CockroachDB). Hal ini merepresentasikan tantangan teknis utama dari sistem.
+    \item \textbf{Pembuktian Janji Arsitektur:} Fitur eskalasi otomatis membuktikan kemampuan sistem dalam menjalankan proses latar belakang (\textit{background job}) secara independen, yang merupakan ciri khas arsitektur \textit{microservices}.
+    \item \textbf{Mitigasi Risiko Keamanan:} Anonimitas adalah fitur paling krusial dalam aplikasi pelaporan warga (untuk \textit{whistleblowing}). Membuktikan fitur ini di tahap PoC menjamin bahwa fondasi keamanan sistem sudah benar sebelum dikembangkan lebih lanjut.
+\end{enumerate}
+
+\section{Detail Implementasi PoC}
+Bagian ini menyajikan teknis implementasi dari \textit{Proof-of-Concept} yang telah dirancang untuk membuktikan fungsionalitas dan kualitas sistem terdistribusi \textit{JagaWarga}.
+
+\subsection{Sumber Kode}
+Seluruh kode sumber untuk layanan \textit{backend}, konfigurasi infrastruktur, dan \textit{gateway} dapat diakses melalui repositori berikut:
+\begin{itemize}
+    \item \textbf{Repositori Utama:} \href{https://github.com/anomali-nangor/jagawarga-poc}{https://github.com/anomali-nangor/jagawarga-poc}
+\end{itemize}
+
+\subsection{Panduan Menjalankan Sistem}
+Sistem telah dikontainerisasi menggunakan Docker untuk memastikan konsistensi lingkungan pengembangan. Berikut adalah langkah-langkah untuk menjalankan PoC:
+
+\begin{lstlisting}[language=bash, caption=Instruksi Menjalankan PoC]
+# 1. Clone repositori
+git clone https://github.com/anomali-nangor/jagawarga-poc.git
+cd jagawarga-poc
+
+# 2. Menjalankan seluruh layanan dan infrastruktur
+# Termasuk CockroachDB Cluster, NATS, Bun Services, dan Elixir Services
+docker-compose up -d
+
+# 3. Verifikasi status container
+docker ps
+\end{lstlisting}
+
+\subsection{Dokumentasi Hasil Implementasi}
+Berikut adalah bukti visual dari komponen sistem yang telah berjalan:
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.8\textwidth]{dashboard_grafana.png} 
+    \small [Placeholder: Screenshot Dashboard Grafana menunjukkan metrik sistem]
+    \caption{Visualisasi Monitoring Sistem melalui Grafana}
+    \label{fig:poc_grafana}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.8\textwidth]{nats_logs.png}
+    \small [Placeholder: Screenshot Log NATS JetStream saat terjadi Event Pelaporan]
+    \caption{Log Aliran Pesan Asinkron pada Message Broker}
+    \label{fig:poc_nats}
+\end{figure}
+
+\section{Asumsi-Asumsi Perancangan}
+Dalam menyusun rancangan arsitektur dan implementasi PoC ini, diambil beberapa asumsi sebagai batasan ruang lingkup:
+\begin{enumerate}
+    \item \textbf{Validitas Identitas:} Sistem mengasumsikan bahwa data kependudukan (NIK/KTP) yang dikirimkan warga sudah divalidasi oleh layanan pihak ketiga eksternal yang terpercaya. PoC hanya fokus pada cara sistem menangani data tersebut setelah divalidasi.
+    \item \textbf{Penyimpanan Multimedia:} Dokumen multimedia (foto/video) dalam PoC diasumsikan disimpan dalam \textit{local volume} yang terikat pada kontainer \textit{Report Service}, bukan pada \textit{Object Storage} (seperti S3) yang terdistribusi secara geografis.
+    \item \textbf{Waktu Eskalasi:} Untuk kebutuhan demonstrasi, waktu tunggu eskalasi otomatis (FR-8) dipercepat dari satuan hari menjadi satuan detik/menit agar perubahan status dapat terlihat secara \textit{real-time}.
+    \item \textbf{Integrasi Eksternal:} Sistem eksternal yang disebutkan pada FR-7 disimulasikan sebagai sebuah \textit{mock webhook} yang mencatat penerimaan data laporan tanpa melakukan pemrosesan lebih lanjut.
+    \item \textbf{Keamanan Jaringan:} Seluruh komunikasi antar-layanan di dalam \textit{private network} Docker diasumsikan aman, namun komunikasi publik melalui \textit{Gateway} tetap diwajibkan menggunakan protokol HTTPS/TLS.
+\end{enumerate}

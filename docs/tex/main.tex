@@ -1,0 +1,60 @@
+\documentclass{report}
+\input{preamble}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    filecolor=magenta,      
+    urlcolor=cyan,
+    pdftitle={Tugas Besar IF4031 Arsitektur Aplikasi Terdistribusi},
+}
+
+\begin{document}
+
+% --- Mulai Cover ---
+\begin{titlepage}
+    \centering
+    
+    % Judul Mata Kuliah
+    \Large \textsf{Tugas Besar IF4031 Arsitektur Aplikasi Terdistribusi} \\
+    \vspace{1.5cm}
+
+    % Judul Project
+    \huge \textbf{JagaWarga: \\ Aplikasi Pelaporan Warga Dengan Arsitektur Terdistribusi} \\
+    \vspace{1.5cm}
+
+    % Foto cover
+    \includegraphics[width=0.4\textwidth]{cover.jpg} \\ 
+    \vspace{1.5cm}
+
+    % Penulis
+    \large \textit{Disusun oleh: Kelompok anomali\_nangor} \\
+    \vspace{0.5cm}
+    
+    \begin{tabular}{r l}
+        Rhio Bimo Prakoso Sugiyanto & 13523123 \\
+        Frederiko Eldad Mugiyono & 13523147 \\
+        Naufarrel Zhafif Abhista & 13523149
+    \end{tabular}
+
+    \vfill
+
+    \large
+    Program Studi Teknik Informatika \\
+    Sekolah Teknik Elektro dan Informatika \\
+    Institut Teknologi Bandung \\
+    2025
+\end{titlepage}
+
+\pagenumbering{roman}
+\tableofcontents
+\newpage
+
+\pagenumbering{arabic}
+\setcounter{page}{1}
+
+\input{contents/01-pendahuluan.tex}
+\input{contents/02-skpl.tex}
+\input{contents/03-perancangan.tex}
+
+\end{document}
