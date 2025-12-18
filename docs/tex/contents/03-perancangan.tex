@@ -231,24 +231,194 @@ Dengan CockroachDB, jika terjadi lonjakan laporan mendadak dari 2,5 juta warga, 
 \subsubsection{Kesimpulan Teknologi Terpilih}
 Dipilih \textbf{CockroachDB} sebagai solusi penyimpanan utama. Meskipun PostgreSQL lebih familiar, kebutuhan akan \textit{horizontal scaling} yang mulus dan jaminan ketersediaan data pada skala kota besar menjadikan CockroachDB sebagai pilihan yang lebih superior untuk memenuhi standar arsitektur terdistribusi yang handal.
 
+\subsection{Analisis Komponen 3: \textit{Message Broker}}
+\textit{Message Broker} berfungsi sebagai tulang punggung komunikasi asinkron antar-layanan. Komponen ini krusial untuk memastikan bahwa layanan utama (\textit{Report Service}) tidak terbebani oleh tugas-tugas sekunder seperti pengiriman notifikasi, integrasi pihak ketiga, dan pengecekan eskalasi.
+
+\subsubsection{Alternatif Teknologi yang Memungkinkan}
+Kami mengevaluasi tiga teknologi \textit{message bus} yang umum digunakan dalam arsitektur terdistribusi:
+\begin{enumerate}
+    \item \textbf{RabbitMQ:} \textit{Message broker} tradisional yang menggunakan protokol AMQP (\textit{Advanced Message Queuing Protocol}).
+    \item \textbf{Apache Kafka:} Platform \textit{event streaming} terdistribusi yang dirancang untuk \textit{throughput} sangat tinggi.
+    \item \textbf{NATS JetStream:} Sistem \textit{messaging cloud-native} yang ringan dengan dukungan persistensi data (\textit{streaming}).
+\end{enumerate}
+
+\subsubsection{\textit{Pros} dan \textit{Cons} Teknologi}
+Berikut adalah tabel analisis perbandingan fitur teknis dari ketiga teknologi tersebut:
+
+\begin{table}[H]
+    \centering
+    \small
+    \begin{tabular}{@{} p{2.5cm} p{4.5cm} p{4.5cm} @{} }
+        \toprule
+        \textbf{Teknologi} & \textbf{\textit{Pros}} & \textbf{\textit{Cons}} \\ \midrule
+        \textbf{RabbitMQ} & Fitur \textit{routing} sangat fleksibel; mendukung banyak protokol; matang secara ekosistem. & Penggunaan memori cukup tinggi untuk setiap antrean; manajemen klaster dan \textit{scaling} horizontal cukup kompleks. \\ \midrule
+        \textbf{Apache Kafka} & \textit{Throughput} luar biasa tinggi; retensi data sangat baik; cocok untuk \textit{big data processing}. & Sangat berat secara \textit{resource}; membutuhkan \textit{Zookeeper} atau konfigurasi \textit{KRaft} yang rumit; \textit{operational overhead} besar untuk tim kecil. \\ \midrule
+        \textbf{NATS JetStream} & Sangat ringan (\textit{single binary}); latensi sangat rendah; mendukung pola \textit{at-least-once delivery} secara \textit{native}. & Fitur \textit{routing} tidak sekompleks RabbitMQ; ekosistem \textit{library} lebih kecil dibanding dua kompetitornya. \\ \bottomrule
+    \end{tabular}
+    \caption{Perbandingan Teknologi \textit{Message Broker}}
+\end{table}
+
+\subsubsection{Analisis Mendalam dan Kesesuaian}
+Tantangan utama sistem JagaWarga dengan 2,5 juta penduduk adalah menangani \textbf{NFR-SC1 (Lonjakan Beban)} dan \textbf{NFR-SC2 (Efisiensi Sumber Daya)}. Analisis kami berfokus pada dua aspek teknis utama:
+
+\begin{enumerate}
+    \item \textbf{\textit{Backpressure Handling}:} Saat terjadi lonjakan laporan (misal: banjir besar), ribuan laporan masuk dalam hitungan detik. Jika kita menggunakan komunikasi sinkron, \textit{Report Service} akan \textit{timeout} menunggu \textit{Notification Service} selesai bekerja. Dengan \textit{Message Broker}, pesan akan ditampung terlebih dahulu. NATS JetStream dipilih karena kemampuannya menyediakan \textit{Pull-based Consumer}. Ini memungkinkan layanan turunan mengambil pesan sesuai dengan kapasitas kemampuannya (\textit{backpressure management}), sehingga tidak terjadi penumpukan memori di sisi \textit{worker}.
+    
+    \item \textbf{\textit{Operational Complexity} vs \textit{Performance}:} Meskipun Apache Kafka memiliki \textit{throughput} lebih tinggi, kompleksitas operasionalnya akan membebani tim pengembangan yang hanya terdiri dari 3 orang. Sebaliknya, NATS ditulis menggunakan bahasa Go dan memiliki ukuran \textit{binary} yang sangat kecil dengan performa yang bersaing. Hal ini sangat mendukung \textbf{NFR-SC2}, di mana penggunaan sumber daya infrastruktur harus tetap efisien saat beban rendah.
+\end{enumerate}
+
+
+
+Kebutuhan akan \textbf{NFR-R1 (Reliability)} juga dipenuhi oleh fitur \textit{JetStream} yang memungkinkan persistensi pesan di disk. Jika \textit{Notification Service} mati total selama satu jam, laporan warga tidak akan hilang; pesan tetap tersimpan di dalam \textit{stream} NATS dan akan diproses secara otomatis segera setelah layanan tersebut aktif kembali.
+
+\subsubsection{Kesimpulan Teknologi Terpilih}
+Dipilih \textbf{NATS JetStream}. Teknologi ini menawarkan keseimbangan terbaik antara performa tinggi, penggunaan sumber daya yang rendah, dan kemudahan manajemen operasional, yang sangat krusial untuk menjaga stabilitas sistem pelaporan warga dalam skala besar.
+
+\subsection{Analisis Komponen 4: \textit{Edge Runtime} (Identitas \& Anonimitas)}
+Layanan Identitas dan Anonimitas bertindak sebagai \textit{gatekeeper} yang memvalidasi identitas warga serta melakukan transformasi data sensitif (\textit{PII scrubbing}) sebelum laporan diteruskan ke layanan inti. Performa pada titik ini sangat krusial agar tidak terjadi \textit{bottleneck} pada alur masuk laporan.
+
+\subsubsection{Alternatif Teknologi yang Memungkinkan}
+Kami mengevaluasi tiga \textit{runtime} JavaScript/TypeScript:
+\begin{enumerate}
+    \item \textbf{Node.js:} \textit{Runtime} paling matang dengan dukungan pustaka keamanan dan validasi yang sangat luas.
+    \item \textbf{Deno:} \textit{Runtime} yang fokus pada keamanan (\textit{secure by default}) dan dukungan \textit{first-class} untuk TypeScript.
+    \item \textbf{Bun:} \textit{Runtime} dan \textit{toolkit} baru yang ditulis menggunakan bahasa Zig, dirancang untuk kecepatan eksekusi dan efisiensi memori yang ekstrem.
+\end{enumerate}
+
+\subsubsection{\textit{Pros} dan \textit{Cons} Teknologi}
+Berikut adalah tabel analisis teknis untuk pemilihan \textit{runtime} pada layanan anonimitas:
+
+\begin{table}[H]
+    \centering
+    \small
+    \begin{tabular}{@{} p{2.5cm} p{4.5cm} p{4.5cm} @{} }
+        \toprule
+        \textbf{Teknologi} & \textbf{\textit{Pros}} & \textbf{\textit{Cons}} \\ \midrule
+        \textbf{Node.js} & Stabilitas tinggi; dukungan pustaka kriptografi (\textit{OpenSSL}) yang sangat matang. & \textit{Cold start} dan penggunaan memori cenderung lebih tinggi dibandingkan \textit{runtime} modern. \\ \midrule
+        \textbf{Deno} & Fitur keamanan \textit{sandbox} bawaan; tidak membutuhkan \textit{node\_modules} (manajemen modul lebih bersih). & Ekosistem belum sebesar Node.js; performa pada beberapa kasus masih di bawah Bun. \\ \midrule
+        \textbf{Bun} & Performa \textit{start-up} dan eksekusi \textit{string manipulation} sangat cepat; penggunaan memori sangat rendah. & Masih dalam tahap pengembangan aktif (\textit{less mature}); beberapa pustaka Node.js mungkin belum kompatibel sepenuhnya. \\ \bottomrule
+    \end{tabular}
+    \caption{Perbandingan \textit{Runtime} JavaScript/TypeScript}
+\end{table}
+
+\subsubsection{Analisis Mendalam dan Kesesuaian}
+Pemilihan teknologi untuk komponen ini didasarkan pada pemenuhan \textbf{NFR-P1 (Performance)} dan \textbf{NFR-S4 (Proteksi Data Pribadi)}:
+
+\begin{enumerate}
+    \item \textbf{Efisiensi Manipulasi Data (PII Scrubbing):} Proses anonimisasi laporan melibatkan pembersihan \textit{metadata}, penghapusan kolom identitas, dan pembuatan ID unik secara massal saat terjadi lonjakan laporan. Bun menggunakan \textit{JavaScriptCore engine} (dari WebKit) yang telah dioptimasi secara mendalam untuk operasi string dan I/O. Hasil uji internal pengembang menunjukkan bahwa Bun mampu menangani permintaan per detik (\textit{Requests Per Second}) hingga 3 kali lipat lebih banyak daripada Node.js pada beban kerja serupa. Hal ini memastikan target \textbf{NFR-P1} tercapai meskipun sistem sedang melakukan enkripsi data pada tiap laporan.
+    
+    \item \textbf{Efisiensi Memori (\textit{Memory Footprint}):} Dalam arsitektur \textit{microservices}, setiap \textit{instance} layanan mengonsumsi sumber daya. Bun dirancang untuk memiliki penggunaan memori yang minimal. Analisis kami menunjukkan bahwa layanan identitas yang dibangun dengan Bun dan \textit{framework} ElysiaJS memiliki \textit{memory footprint} yang jauh lebih kecil dibandingkan tumpukan teknologi Node.js/Express. Hal ini sangat mendukung \textbf{NFR-SC2}, yang memungkinkan kita menjalankan lebih banyak replika layanan (\textit{horizontal scaling}) pada infrastruktur yang sama tanpa membengkakkan biaya sumber daya.
+    
+    \item \textbf{\textit{End-to-End Type Safety}:} Penggunaan TypeScript secara \textit{native} di Bun tanpa perlu proses kompilasi eksternal (\textit{transpilation}) yang lambat meningkatkan kecepatan \textit{development} dan mengurangi risiko \textit{runtime error} pada validasi identitas warga (\textbf{NFR-S3}).
+\end{enumerate}
+
+\subsubsection{Kesimpulan Teknologi Terpilih}
+Dipilih \textbf{Bun (dengan ElysiaJS)}. Kombinasi ini memberikan \textit{throughput} maksimal dan penggunaan memori minimal, menjadikannya pilihan ideal untuk layanan \textit{middleware} anonimitas yang harus memproses ribuan laporan secara cepat namun tetap efisien.
+
+\subsection{Analisis Komponen 5: \textit{API Gateway} / \textit{Edge Proxy}}
+\textit{API Gateway} bertindak sebagai pintu masuk tunggal (\textit{single entry point}) bagi seluruh trafik eksternal. Komponen ini bertanggung jawab atas \textit{SSL/TLS termination}, \textit{load balancing}, dan \textit{routing} permintaan ke berbagai layanan mikro yang sesuai.
+
+\subsubsection{Alternatif Teknologi yang Memungkinkan}
+Kami mengevaluasi tiga solusi \textit{gateway} yang umum digunakan dalam arsitektur \textit{cloud-native}:
+\begin{enumerate}
+    \item \textbf{Nginx:} \textit{Reverse proxy} tradisional yang sangat stabil dan memiliki performa tinggi, namun bersifat statis dalam konfigurasinya.
+    \item \textbf{Kong:} \textit{API Gateway} berbasis Nginx dan Lua yang sangat \textit{powerful} dengan dukungan \textit{plugin} yang luas (seperti \textit{rate limiting}, \textit{auth}, dll).
+    \item \textbf{Traefik:} \textit{Edge router} modern yang ditulis dalam bahasa Go, dirancang khusus untuk arsitektur kontainer dan \textit{microservices}.
+\end{enumerate}
+
+\subsubsection{\textit{Pros} dan \textit{Cons} Teknologi}
+Berikut adalah perbandingan fitur operasional dari ketiga teknologi \textit{gateway} tersebut:
+
+\begin{table}[H]
+    \centering
+    \small
+    \begin{tabular}{@{} p{2.5cm} p{4.5cm} p{4.5cm} @{} }
+        \toprule
+        \textbf{Teknologi} & \textbf{\textit{Pros}} & \textbf{\textit{Cons}} \\ \midrule
+        \textbf{Nginx} & Performa ekstrim; penggunaan memori sangat rendah; standar industri yang matang. & Konfigurasi bersifat statis (memerlukan \textit{reload} saat ada perubahan); sulit untuk manajemen \textit{service discovery} secara otomatis. \\ \midrule
+        \textbf{Kong} & Fitur manajemen API sangat lengkap; mendukung skrip kustom via Lua. & Sangat kompleks; membutuhkan basis data eksternal (PostgreSQL) untuk menyimpan konfigurasi; \textit{resource footprint} cukup besar. \\ \midrule
+        \textbf{Traefik} & Konfigurasi dinamis secara otomatis; \textit{native support} untuk Docker dan Kubernetes; memiliki \textit{dashboard} pemantauan bawaan. & Performa \textit{raw throughput} sedikit di bawah Nginx; fitur manajemen API tingkat lanjut tidak sebanyak Kong. \\ \bottomrule
+    \end{tabular}
+    \caption{Perbandingan Teknologi \textit{API Gateway}}
+\end{table}
+
+\subsubsection{Analisis Mendalam dan Kesesuaian}
+Pemilihan \textit{gateway} pada sistem JagaWarga difokuskan pada pemenuhan \textbf{NFR-O1 (Observability)} dan \textbf{NFR-SC2 (Efisiensi Sumber Daya)}:
+
+\begin{enumerate}
+    \item \textbf{Konfigurasi Dinamis Tanpa \textit{Downtime}:} Dalam arsitektur terdistribusi dengan 2,5 juta pengguna, kita mungkin perlu melakukan \textit{deployment} layanan baru atau melakukan \textit{scaling} secara mendadak. Nginx mewajibkan \textit{reload} konfigurasi yang berisiko memutus koneksi aktif. Traefik bekerja dengan mendengarkan \textit{event} dari Docker API secara langsung. Saat sebuah kontainer \textit{service} baru menyala, Traefik akan secara otomatis mendeteksi, membuat rute, dan melakukan \textit{load balancing} tanpa campur tangan manual. Hal ini menjamin ketersediaan sistem sesuai \textbf{NFR-R1}.
+    
+    \item \textbf{\textit{Native Observability Integration}:} Sesuai dengan kebutuhan \textbf{NFR-O1}, Traefik memiliki dukungan bawaan untuk mengekspor metrik ke Prometheus dan \textit{tracing} ke Jaeger. Kita tidak perlu memasang agen tambahan di sisi \textit{gateway} untuk memantau latensi setiap \textit{endpoint} API, sehingga mengurangi kompleksitas infrastruktur.
+    
+    \item \textbf{Keamanan dan Otomatisasi TLS:} Traefik mendukung integrasi langsung dengan \textit{Let's Encrypt} untuk manajemen sertifikat SSL/TLS secara otomatis. Hal ini memastikan seluruh data warga yang dikirimkan selalu terenkripsi (\textbf{NFR-S5}) tanpa beban operasional dalam memperbarui sertifikat secara berkala.
+\end{enumerate}
+
+\subsubsection{Kesimpulan Teknologi Terpilih}
+Dipilih \textbf{Traefik Proxy}. Kemampuannya dalam melakukan \textit{service discovery} secara otomatis dan integrasi \textit{observability} yang \textit{out-of-the-box} menjadikannya pilihan paling efisien bagi tim kecil untuk mengelola sistem terdistribusi yang kompleks namun tetap \textit{scalable}.
+
+\subsection{Analisis Komponen 6: \textit{Observability Stack}}
+\textit{Observability} adalah fondasi utama dalam sistem terdistribusi untuk memahami kondisi internal sistem melalui \textit{output} eksternal. Mengingat arsitektur \textit{JagaWarga} melibatkan banyak layanan (\textit{Polyglot microservices}), tim operasional memerlukan visualisasi yang jelas untuk melacak aliran data dan mendeteksi kegagalan secara cepat.
+
+\subsubsection{Alternatif Teknologi yang Memungkinkan}
+Kami mengevaluasi tiga ekosistem pemantauan yang populer di industri:
+\begin{enumerate}
+    \item \textbf{ELK Stack (Elasticsearch, Logstash, Kibana):} Ekosistem yang berfokus pada manajemen log terpusat (\textit{log aggregation}).
+    \item \textbf{Prometheus \& Grafana:} Kombinasi pemantauan berbasis metrik deret waktu (\textit{time-series}) dan visualisasi panel kontrol.
+    \item \textbf{OpenTelemetry (OTel):} Standar terbuka untuk pengumpulan \textit{telemetry data} (metrik, log, dan \textit{traces}) yang bersifat \textit{vendor-agnostic}.
+\end{enumerate}
+
+\subsubsection{\textit{Pros} dan \textit{Cons} Teknologi}
+Berikut adalah evaluasi perbandingan untuk kebutuhan pemantauan sistem:
+
+\begin{table}[H]
+    \centering
+    \small
+    \begin{tabular}{@{} p{2.5cm} p{4.5cm} p{4.5cm} @{} }
+        \toprule
+        \textbf{Teknologi} & \textbf{\textit{Pros}} & \textbf{\textit{Cons}} \\ \midrule
+        \textbf{ELK Stack} & Sangat kuat untuk pencarian teks dalam log; fitur analisis data mentah yang sangat detail. & Konsumsi \textit{resource} (RAM/Disk) sangat besar; pengelolaan indeks Elasticsearch sangat kompleks untuk skala besar. \\ \midrule
+        \textbf{Prometheus} & Sangat efisien dalam menyimpan metrik; model \textit{pull-based} yang tidak membebani aplikasi; dukungan \textit{alerting} yang matang. & Tidak dirancang untuk penyimpanan log jangka panjang; visualisasi bawaan sangat terbatas (butuh Grafana). \\ \midrule
+        \textbf{OpenTelemetry} & Satu standar untuk semua jenis data (\textit{logs, metrics, traces}); mendukung instrumentasi pada berbagai bahasa (Elixir, Bun, Go). & Masih memerlukan \textit{backend storage} (seperti Prometheus atau Jaeger) untuk menyimpan datanya. \\ \bottomrule
+    \end{tabular}
+    \caption{Perbandingan Teknologi \textit{Observability}}
+\end{table}
+
+\subsubsection{Analisis Mendalam dan Kesesuaian}
+Pemilihan infrastruktur pemantauan ini didasarkan pada pemenuhan \textbf{NFR-O1 (Monitoring)} dan \textbf{NFR-O2 (Security Monitoring)}:
+
+\begin{enumerate}
+    \item \textbf{Efisiensi Sumber Daya vs Deteksi Masalah:} Dalam sistem dengan 2,5 juta warga, jumlah log yang dihasilkan bisa mencapai hitungan \textit{terabyte} per hari. ELK Stack akan memakan biaya infrastruktur yang sangat besar hanya untuk indeks log. Sebaliknya, Prometheus hanya menyimpan angka (\textit{metrics}) seperti RPS (\textit{Request Per Second}), latensi, dan penggunaan memori. Analisis kami menunjukkan bahwa metrik jauh lebih efektif untuk deteksi dini masalah (\textit{alerting}) dibandingkan log mentah, sesuai dengan prinsip \textbf{NFR-SC2}.
+    
+    \item \textbf{\textit{Distributed Tracing} untuk \textit{Microservices}:} Masalah terbesar pada sistem terdistribusi adalah "di mana \textit{request} ini tertahan?". Dengan menggunakan OpenTelemetry, kita dapat menyematkan \textit{Trace ID} pada setiap laporan warga. Saat laporan dikirim dari Bun (Anonimizer) ke NATS, lalu diproses oleh Elixir (Core), kita bisa melihat visualisasi aliran data tersebut di Grafana. Hal ini krusial untuk memenuhi \textbf{NFR-O1} dalam melacak lalu lintas antar-komponen.
+
+
+
+    \item \textbf{Visibilitas Keamanan (NFR-O2):} Dengan Grafana, kita bisa membuat \textit{dashboard} khusus yang memantau anomali lalu lintas, misalnya lonjakan tajam laporan dari satu alamat IP yang sama, yang membantu tim keamanan dalam mitigasi serangan DDoS tanpa harus melanggar privasi isi laporan warga.
+\end{enumerate}
+
+\subsubsection{Kesimpulan Teknologi Terpilih}
+Dipilih kombinasi \textbf{Prometheus} untuk pengumpulan metrik, \textbf{OpenTelemetry} untuk instrumentasi kode, dan \textbf{Grafana} sebagai pusat visualisasi. Arsitektur ini memberikan visibilitas penuh terhadap kesehatan sistem dengan penggunaan sumber daya yang jauh lebih efisien dibandingkan solusi berbasis log tradisional.
+
+\subsection{Kesimpulan \textit{Tech Stack}}
+
+Berikut adalah tabel yang menyimpulkan \textit{Tech Stack} yang kami gunakan.
+
 \begin{table}[H]
     \centering
     \small
     \begin{tabular}{@{} p{2.5cm} p{2.5cm} p{5.5cm} l @{}}
         \toprule
-        \textbf{Komponen} & \textbf{Teknologi} & \textbf{Alasan Pemilihan} & \textbf{Ref. Req} \\ \midrule
-        \textbf{Core Service} (Report \& Escalation) & \textbf{Elixir} (Phoenix) & Memanfaatkan BEAM VM untuk \textit{fault tolerance} tinggi melalui \textit{supervisor trees}. Sangat efisien dalam menangani ribuan \textit{process} ringan secara konkuren. & NFR-R1, NFR-SC1, FR-8 \\ \midrule
-        \textbf{Identity \& Anonymizer} & \textbf{Bun} (ElysiaJS) & \textit{Runtime} berbasis Zig yang memiliki performa \textit{cold start} dan eksekusi sangat cepat. Mendukung \textit{end-to-end type safety} untuk validasi identitas dan \textit{PII scrubbing}. & NFR-P1, NFR-S2, NFR-S4 \\ \midrule
-        \textbf{Message Broker} & \textbf{NATS JetStream} & \textit{Cloud-native messaging system} yang sangat ringan namun mendukung persistensi data dan pola \textit{at-least-once delivery}. & NFR-R1, NFR-SC1, FR-4 \\ \midrule
-        \textbf{Main Database} & \textbf{CockroachDB} & \textit{Distributed SQL database} yang mendukung \textit{auto-sharding} dan replikasi data otomatis. Menjamin data tetap tersedia meskipun salah satu node pusat data mati. & NFR-SC1, NFR-S1, NFR-S5 \\ \midrule
-        \textbf{API Gateway} & \textbf{Traefik} & \textit{Edge router} yang mendukung konfigurasi dinamis, otomatisasi SSL/TLS, dan integrasi \textit{native} dengan orkestrasi kontainer. & NFR-S5, NFR-SC2 \\ \midrule
-        \textbf{Observability} & \textbf{Prometheus \& Grafana} & Standar industri untuk pengumpulan metrik deret waktu (\textit{time-series}) dan visualisasi performa sistem secara \textit{real-time}. & NFR-O1, NFR-O2 \\ \bottomrule
+        \textbf{Komponen} & \textbf{Teknologi} & \textbf{Alasan Pemilihan (Hasil Analisis)} & \textbf{Ref. Req} \\ \midrule
+        \textbf{Core Service} & \textbf{Elixir} (Phoenix) & Menjamin \textit{soft real-time performance} dan isolasi kesalahan total melalui \textit{Supervisor Trees} (\textit{Fault Tolerance}). & NFR-R1, NFR-SC1, FR-8 \\ \midrule
+        \textbf{Identity \& Anonymizer} & \textbf{Bun} (ElysiaJS) & Optimal untuk \textit{high-speed string manipulation} pada proses \textit{PII scrubbing} dengan \textit{memory footprint} yang sangat rendah. & NFR-P1, NFR-S2, NFR-S4 \\ \midrule
+        \textbf{Message Broker} & \textbf{NATS JetStream} & Mendukung \textit{pull-based consumer} untuk \textit{backpressure handling} yang efektif saat terjadi lonjakan laporan warga. & NFR-R1, NFR-SC1, FR-4 \\ \midrule
+        \textbf{Main Database} & \textbf{CockroachDB} & Implementasi \textit{Distributed SQL} dengan protokol konsensus Raft untuk menjamin konsistensi data dan \textit{zero-downtime scaling}. & NFR-SC1, NFR-S1, NFR-S5 \\ \midrule
+        \textbf{API Gateway} & \textbf{Traefik Proxy} & Otomatisasi \textit{service discovery} dan konfigurasi dinamis tanpa \textit{reload}, mendukung stabilitas operasional \textit{microservices}. & NFR-S5, NFR-SC2, NFR-R1 \\ \midrule
+        \textbf{Observability} & \textbf{Prometheus, Grafana, OTel} & Efisiensi pemantauan berbasis metrik dan \textit{distributed tracing} untuk melacak aliran laporan antar-layanan secara \textit{end-to-end}. & NFR-O1, NFR-O2 \\ \bottomrule
     \end{tabular}
-    \caption{Tabel Justifikasi Pemilihan \textit{Tech Stack} JagaWarga}
+    \caption{Ringkasan Justifikasi Pemilihan \textit{Tech Stack} JagaWarga}
     \label{tab:tech_stack}
 \end{table}
-
-
 
 Pemilihan teknologi di atas didasarkan pada prinsip \textit{Survivability} dan \textit{High Scalability}. Penggunaan \textbf{Elixir} dan \textbf{CockroachDB} secara khusus menjawab tantangan pengelolaan 2,5 juta warga, di mana ketersediaan sistem (\textit{availability}) adalah prioritas utama. Sementara itu, penggunaan \textbf{Bun} pada layanan anonimitas memastikan proses transformasi data tidak menjadi hambatan (\textit{bottleneck}) bagi performa keseluruhan aplikasi (\textbf{NFR-P1}).
 
