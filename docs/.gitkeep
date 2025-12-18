@@ -1,0 +1,23 @@
+\documentclass{report}
+\input{preamble}
+
+\hypersetup{
+    colorlinks=false,
+    pdftitle={Tugas Besar IF4031 Arsitektur Aplikasi Terdistribusi}}
+
+\title{Catatan UAS\\
+\Huge{IF2130 Sistem Operasi}}
+\author{Naufarrel Zhafif Abhista\\ 13523149}
+\date{}
+
+\begin{document}
+\maketitle
+
+\tableofcontents
+\renewcommand*\contentsname{Daftar Isi}
+\renewcommand*\chaptername{Pertemuan}
+
+\include{deadlock/deadlock}
+\include{memorymanagement/memorymanagement}
+
+\end{document}
