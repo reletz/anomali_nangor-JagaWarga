@@ -1,0 +1,87 @@
+version: '3.8'
+
+services:
+  db:
+    image: cockroachdb/cockroach:v23.1.10
+    container_name: jagawarga-db
+    ports: 
+      - "26257:26257" # for functionalities
+      - "8080:8080"   # for monitoring
+    command: start-single-node --insecure
+    networks:
+      - jagawarga-net
+    healthcheck:
+      test: ["CMD", "/cockroach/cockroach", "node", "status", "--insecure"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    volumes:
+      - db-data:/cockroach/cockroach-data
+  
+  mb:
+    image: nats:2.10-alpine
+    container_name: jagawarga-mb
+    command: "-js"
+    ports:
+      - "4222:4222" # for functionalies
+      - "8222:8222" # for monitoring
+    networks:
+      - jagawarga-net
+  
+  gateway:
+    image: traefik:2.10
+    container_name: jagawarga-gateway
+    ports:
+      - "8000:80"   # for functionalies
+      - "8081:8081" # for monitoring
+    command: "--api.insecure=true --providers.docker=true"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - nats-data:/data
+    networks:
+      - jagawarga-net
+    
+  identity-service:
+    build: "./src/services/identity/"
+    container_name: jagawarga-identity
+    depends_on:
+      db:
+        condition: service_healthy
+      mb:
+        condition: service_started
+    networks:
+      - jagawarga-net
+    labels:
+      - "traefik.http.routers.identity.rule=Host(`identity.jagawarga.local`)"
+    environment:
+      - DB_PORT=26257
+      - DB_HOST=db
+      - DB_NAME=defaultdb
+      - NATS_URL=nats://mb:4222
+    
+  report-service:
+    build: "./src/services/report/"
+    container_name: jagawarga-report
+    depends_on:
+      db:
+        condition: service_healthy
+      mb:
+        condition: service_started
+    networks:
+      - jagawarga-net
+    labels:
+      - "traefik.http.routers.report.rule=Host(`report.jagawarga.local`)"
+    environment:
+      - DB_PORT=26257
+      - DB_HOST=db
+      - DB_NAME=defaultdb
+      - NATS_URL=nats://mb:4222
+    
+networks:
+  jagawarga-net:
+    driver: bridge
+
+volumes:
+  db-data:
+  nats-data:
