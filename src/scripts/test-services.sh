@@ -78,7 +78,25 @@ echo
 
 echo "📝 Step 7: Test Report Submission"
 echo "───────────────────────────────────────────────────────"
-echo "⏭️  Skipping: report submission handled by another service"
+if curl -s -f http://localhost:3002/health > /dev/null 2>&1; then
+    RESULT=$(curl -s -X POST http://localhost:3002/reports \
+        -H "Content-Type: application/json" \
+        -d '{
+            "content":"Test report with NIK 3201234567890123 and phone 081234567890",
+            "category":"corruption",
+            "location":"Jl. Test"
+        }')
+    
+    if echo "$RESULT" | grep -q "success"; then
+        echo "✅ Report submission works"
+        echo "$RESULT" | head -10
+    else
+        echo "❌ Report submission failed"
+        echo "$RESULT"
+    fi
+else
+    echo "⏭️  Skipping (service not running)"
+fi
 echo
 
 echo "╔═══════════════════════════════════════════════════════╗"

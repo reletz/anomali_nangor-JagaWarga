@@ -91,8 +91,33 @@ async function testPIIScrubbing() {
 async function testReportSubmission() {
   console.log('\n📝 Testing Report Submission...');
 
-  console.log('  ⏭️  Skipping: report submission handled by another service');
-  return true;
+  try {
+    const report = {
+      content: 'Test report with PII: Contact 081234567890, Email test@example.com, NIK 3201234567890123',
+      category: 'corruption',
+      location: 'Jl. Test No. 123',
+    };
+
+    const response = await fetch(`${ANONYMIZER_URL}/reports`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(report),
+    });
+
+    const data = await response.json();
+
+    if (data.success && data.report.id) {
+      console.log(`  ✅ Report created: ${data.report.id}`);
+      console.log(`  🧹 PII scrubbed: ${data.scrubbing.pii_detected} items`);
+      return true;
+    } else {
+      console.log('  ❌ Report creation failed:', data);
+      return false;
+    }
+  } catch (error) {
+    console.error('  ❌ Error:', error);
+    return false;
+  }
 }
 
 // Run all tests
