@@ -439,6 +439,8 @@ Atribut kualitas (kebutuhan non-fungsional) yang akan dibuktikan dalam PoC adala
     \item \textbf{NFR-R1 (Keandalan/Fault Isolation):} Menunjukkan sistem tetap dapat menerima laporan meskipun salah satu layanan (misal: \textit{Notification Service}) sedang tidak tersedia.
     \item \textbf{NFR-SC1 (Skalabilitas):} Membuktikan penggunaan antrean pesan (\textit{Message Broker}) untuk menangani lonjakan laporan tanpa membebani basis data secara sinkron.
     \item \textbf{NFR-S4 (Proteksi Data Pribadi):} Memastikan \textit{data scrubbing} pada laporan anonim bekerja di tingkat \textit{backend}.
+    \item \textbf{NFR-S5 (Keamanan Data):} Menunjukkan enkripsi data \textit{in-transit} melalui \textit{TLS/HTTPS} \textit{pada Traefik Gateway,} serta enkripsi \textit{at-rest} pada \textbf{CockroachDB} menggunakan \textit{encryption-at-rest feature}.
+    \item \textbf{NFR-O1 (Monitoring Sistem):} NFR-O1 Menampilkan \textit{dashboard} \textbf{Grafana} yang memvisualisasikan metrik \textit{real-time} sistem (\textit{request rate, latency, message throughput}) untuk membuktikan \textit{observability stack} berfungsi.
 \end{itemize}
 
 \subsection{Alasan Pemilihan}
