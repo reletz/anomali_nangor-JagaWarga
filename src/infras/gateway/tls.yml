@@ -1,0 +1,5 @@
+# /src/infras/gateway/tls.yml
+tls:
+  certificates:
+    - certFile: /certs/traefik.crt
+      keyFile: /certs/traefik.key

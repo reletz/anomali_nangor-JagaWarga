@@ -1,0 +1,45 @@
+# /src/infras/gateway/dynamic.yml
+http:
+  routers:
+    anonymizer:
+      rule: "PathPrefix(`/anonymizer`)"
+      service: anonymizer-service
+      entryPoints:
+        - websecure
+      tls: {}
+    
+    identity:
+      rule: "PathPrefix(`/identity`)"
+      service: identity-service
+      entryPoints:
+        - websecure
+      tls: {}
+    
+    report:
+      rule: "PathPrefix(`/reports`)"
+      service: report-service
+      entryPoints:
+        - websecure
+      tls: {}
+  
+  services:
+    anonymizer-service:
+      loadBalancer:
+        servers:
+          - url: "http://anonymizer-service:3002"
+    
+    identity-service:
+      loadBalancer:
+        servers:
+          - url: "http://identity-service:3001"
+    
+    report-service:
+      loadBalancer:
+        servers:
+          - url: "http://report-service:4000"
+  
+  middlewares:
+    rate-limit:
+      rateLimit:
+        average: 100
+        burst: 200
