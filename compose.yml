@@ -4,10 +4,8 @@ services:
     container_name: jagawarga-db
     ports: 
       - "26257:26257" # for functionalities
-      - "8080:8080"   # for monitoring
-    command: >
-      start-single-node --insecure
-      --enterprise-encryption=path=/cockroach/cockroach-data,key=/certs/aes-256.key
+      - "8082:8080"   # for monitoring
+    command: start-single-node --insecure
     networks:
       - jagawarga-net
     healthcheck:
@@ -18,7 +16,6 @@ services:
       start_period: 10s
     volumes:
       - db-data:/cockroach/cockroach-data
-      - "./certs/aes-256.key:/certs/aes-256.key:ro"
   
   mb:
     image: nats:2.10-alpine
