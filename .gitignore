@@ -5,3 +5,4 @@ docs/tex/build/*
 *.crt
 *.p12
 *.pfx
+node_modules/
