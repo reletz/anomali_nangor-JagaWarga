@@ -1,25 +1,13 @@
-FROM oven/bun:1-alpine
+FROM elixir:alpine
 
+RUN apk add --no-cache build-base git inotify-tools
 WORKDIR /app
-
-# Copy shared utilities first
-COPY ../shared /app/shared
-
-# Copy package files
-COPY package.json ./
-
-# Install dependencies
-RUN bun install --production
-
-# Copy application files
+RUN mix local.hex --force && \
+    mix local.rebar --force
+COPY mix.exs ./
+RUN mix deps.get
 COPY . .
+RUN mix do compile
+EXPOSE 4000
 
-# Expose port
-EXPOSE 3002
-
-# Health check
-HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3002/health || exit 1
-
-# Run the application
-CMD ["bun", "index.ts"]
+ENTRYPOINT ["mix", "phx.server"]
