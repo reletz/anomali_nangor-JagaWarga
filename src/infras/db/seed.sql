@@ -1,3 +1,5 @@
+USE jagawargadb;
+
 INSERT INTO authorities (department, name, email) VALUES
     ('kebersihan', 'Dinas Kebersihan Kota Bandung', 'kebersihan@bandung.go.id'),
     ('kesehatan', 'Dinas Kesehatan Kota Bandung', 'kesehatan@bandung.go.id'),

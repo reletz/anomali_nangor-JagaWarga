@@ -4,8 +4,10 @@ services:
     container_name: jagawarga-db
     ports: 
       - "26257:26257" # for functionalities
-      - "8082:8080"   # for monitoring
-    command: start-single-node --insecure
+      - "8080:8080"   # for monitoring
+    command: >
+      start-single-node --insecure
+      --enterprise-encryption=path=/cockroach/cockroach-data,key=/certs/aes-256.key,old-key=plain
     networks:
       - jagawarga-net
     healthcheck:
@@ -60,7 +62,7 @@ services:
     environment:
       - DB_PORT=26257
       - DB_HOST=db
-      - DB_NAME=defaultdb
+      - DB_NAME=jagawargadb
       - NATS_URL=nats://mb:4222
     
   report-service:
@@ -78,7 +80,7 @@ services:
     environment:
       - DB_PORT=26257
       - DB_HOST=db
-      - DB_NAME=defaultdb
+      - DB_NAME=jagawargadb
       - NATS_URL=nats://mb:4222
     
 networks:
