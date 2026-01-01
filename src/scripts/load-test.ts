@@ -116,21 +116,8 @@ async function runLoadTest(): Promise<TestResult> {
 
 // Run the test
 console.log('═══════════════════════════════════════════════════');
-console.log('  JagaWarga Load Test - Anonymous Report Submission');
+console.log('  JagaWarga Load Test');
 console.log('═══════════════════════════════════════════════════\n');
-
-const result = await runLoadTest();
-
-console.log('\n═══════════════════════════════════════════════════');
-console.log('  Test Results');
-console.log('═══════════════════════════════════════════════════');
-console.log(`✅ Successful: ${result.success}/${NUM_REPORTS}`);
-console.log(`❌ Failed: ${result.failed}/${NUM_REPORTS}`);
-console.log(`⏱️  Total time: ${result.totalTime}ms (${(result.totalTime / 1000).toFixed(2)}s)`);
-console.log(`📊 Avg response time: ${result.avgResponseTime.toFixed(2)}ms`);
-console.log(`🧹 Total PII detected: ${result.piiDetected}`);
-console.log(`📈 Throughput: ${((NUM_REPORTS / result.totalTime) * 1000).toFixed(2)} req/s`);
+console.log('Report submission is handled by a different service. This load test is disabled.');
+console.log('Please run the dedicated reporting service tests instead.');
 console.log('═══════════════════════════════════════════════════\n');
-
-// Exit with error code if there were failures
-process.exit(result.failed > 0 ? 1 : 0);
