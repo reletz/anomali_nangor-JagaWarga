@@ -1,103 +1,71 @@
-version: '3.8'
-
 services:
   db:
     image: cockroachdb/cockroach:v23.1.10
     container_name: jagawarga-db
+    ports: 
+      - "26257:26257" # for functionalities
+      - "8080:8080"   # for monitoring
     command: >
       start-single-node --insecure
       --enterprise-encryption=path=/cockroach/cockroach-data,key=/certs/aes-256.key
-    ports:
-      - "26257:26257"
-      - "8080:8080"
-    volumes:
-      - db-data:/cockroach/cockroach-data
-      - ./certs/aes-256.key:/certs/aes-256.key:ro
-      - ./src/infras/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     networks:
       - jagawarga-net
     healthcheck:
       test: ["CMD", "/cockroach/cockroach", "node", "status", "--insecure"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
       retries: 5
+      start_period: 10s
+    volumes:
+      - db-data:/cockroach/cockroach-data
+      - "./certs/aes-256.key:/certs/aes-256.key:ro"
   
   mb:
     image: nats:2.10-alpine
     container_name: jagawarga-mb
-    command: "-js -m 8222"
+    command: "-js"
     ports:
-      - "4222:4222"
-      - "8222:8222"
+      - "4222:4222" # for functionalies
+      - "8222:8222" # for monitoring
     networks:
       - jagawarga-net
-    healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "4222"]
-      interval: 5s
-      timeout: 3s
-      retries: 3
   
   gateway:
     image: traefik:2.10
     container_name: jagawarga-gateway
     ports:
-      - "80:80"
-      - "443:443"
-      - "8081:8080"  # Dashboard
-    command:
-      - "--api.insecure=true"
-      - "--providers.docker=true"
-      - "--providers.file.directory=/etc/traefik/dynamic"
+      - "8000:80"   # for functionalies
+      - "8081:8081" # for monitoring
+    command: 
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
-      - "--metrics.prometheus=true"
+      - "--providers.docker=true"
+      - "--providers.file.filename=/certs/tls.yml"
     volumes:
-      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - nats-data:/data
       - "./certs:/certs:ro"
-      - "./src/infras/gateway:/etc/traefik/dynamic:ro"
     networks:
       - jagawarga-net
-  
+    
   identity-service:
     build: "./src/services/identity/"
     container_name: jagawarga-identity
     depends_on:
       db:
         condition: service_healthy
-    environment:
-      - DB_HOST=db
-      - DB_PORT=26257
-      - DB_NAME=jagawarga
-      - JWT_SECRET=dev-secret-key-change-in-prod
-    networks:
-      - jagawarga-net
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-  
-  anonymizer-service:
-    build: "./src/services/anonymizer/"
-    container_name: jagawarga-anonymizer
-    depends_on:
-      db:
-        condition: service_healthy
       mb:
-        condition: service_healthy
-    environment:
-      - DB_HOST=db
-      - DB_PORT=26257
-      - DB_NAME=jagawarga
-      - NATS_URL=nats://mb:4222
+        condition: service_started
     networks:
       - jagawarga-net
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-  
+    labels:
+      - "traefik.http.routers.identity.rule=Host(`identity.jagawarga.local`)"
+    environment:
+      - DB_PORT=26257
+      - DB_HOST=db
+      - DB_NAME=defaultdb
+      - NATS_URL=nats://mb:4222
+    
   report-service:
     build: "./src/services/report/"
     container_name: jagawarga-report
@@ -105,60 +73,21 @@ services:
       db:
         condition: service_healthy
       mb:
-        condition: service_healthy
+        condition: service_started
+    networks:
+      - jagawarga-net
+    labels:
+      - "traefik.http.routers.report.rule=Host(`report.jagawarga.local`)"
     environment:
-      - DB_HOST=db
       - DB_PORT=26257
-      - DB_NAME=jagawarga
+      - DB_HOST=db
+      - DB_NAME=defaultdb
       - NATS_URL=nats://mb:4222
-      - SECRET_KEY_BASE=super-secret-key-base-change-in-prod
-    ports:
-      - "4000:4000"
-    networks:
-      - jagawarga-net
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-  
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: jagawarga-prometheus
-    ports:
-      - "9090:9090"
-    volumes:
-      - "./src/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro"
-      - prometheus-data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-    networks:
-      - jagawarga-net
-  
-  grafana:
-    image: grafana/grafana:latest
-    container_name: jagawarga-grafana
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_USERS_ALLOW_SIGN_UP=false
-    volumes:
-      - "./src/monitoring/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro"
-      - "./src/monitoring/grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro"
-      - "./src/monitoring/grafana:/var/lib/grafana/dashboards:ro"
-      - grafana-data:/var/lib/grafana
-    networks:
-      - jagawarga-net
-    depends_on:
-      - prometheus
-
+    
 networks:
   jagawarga-net:
     driver: bridge
 
 volumes:
   db-data:
-  prometheus-data:
-  grafana-data:
+  nats-data:

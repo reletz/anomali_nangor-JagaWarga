@@ -1,2 +1,7 @@
 docs/tex/build/*
-.env
+*.env
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
