@@ -61,9 +61,29 @@ This document tracks the step-by-step implementation of the Backend Services (Re
 ### 🚧 Step 3: Core Logic & API (Next)
 **Goal:** Implement CRUD operations and HTTP Endpoints.
 
-*   [ ] Create Context Module (`Report.Reports`).
-*   [ ] Implement Controller (`ReportController`).
-*   [ ] Configure Router.
+1.  **Context Module** (`Report.Reports`):
+    *   ✅ `create_report/1` - Creates a new report
+    *   ✅ `list_reports/0` - Lists all reports ordered by created_at desc
+    *   ✅ `list_by_department/1` - Filters reports by authority_department
+    *   ✅ `get_report!/1` - Gets a single report by ID
+    *   ✅ `list_stale_reports/1` - Finds reports older than cutoff for escalation
+    *   ✅ `escalate_report/1` - Updates status to "escalated"
+
+2.  **Controller** (`ReportWeb.ReportController`):
+    *   ✅ `GET /api/reports` - List all reports
+    *   ✅ `GET /api/reports?department=X` - List reports filtered by department
+    *   ✅ `POST /api/reports` - Create a new report
+    *   ✅ `GET /api/reports/:id` - Get a single report
+
+3.  **Health Check** (`ReportWeb.HealthController`):
+    *   ✅ `GET /health` - Returns service health status with DB connectivity check
+
+4.  **JSON Views**:
+    *   ✅ `ReportWeb.ReportJSON` - Serializes report data
+    *   ✅ `ReportWeb.ChangesetJSON` - Handles validation errors
+
+5.  **Router Configuration**:
+    *   ✅ Routes configured in `ReportWeb.Router`
 
 ### ⏳ Step 4: Escalation Worker (Pending)
 **Goal:** Implement GenServer for auto-escalation.

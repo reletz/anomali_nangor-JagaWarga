@@ -5,8 +5,20 @@ defmodule ReportWeb.Router do
     plug :accepts, ["json"]
   end
 
+  # Health check endpoint (no pipeline needed)
+  scope "/", ReportWeb do
+    get "/health", HealthController, :index
+  end
+
   scope "/api", ReportWeb do
     pipe_through :api
+
+    # Report endpoints
+    # GET  /api/reports          - List all reports
+    # GET  /api/reports?department=X - List reports by department
+    # POST /api/reports          - Create a new report
+    # GET  /api/reports/:id      - Get a single report
+    resources "/reports", ReportController, only: [:index, :create, :show]
   end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development
