@@ -1,6 +1,6 @@
 services:
   db:
-    image: cockroachdb/cockroach:v23.1.10
+    image: cockroachdb/cockroach:latest
     container_name: jagawarga-db
     ports: 
       - "26257:26257" # for functionalities
@@ -21,7 +21,7 @@ services:
       - "./certs:/certs:ro"
 
   mb:
-    image: nats:2.10-alpine
+    image: nats:alpine
     container_name: jagawarga-mb
     command: "-js -m 8222"
     ports:
@@ -36,7 +36,7 @@ services:
       retries: 3
   
   gateway:
-    image: traefik:2.10
+    image: traefik:latest
     container_name: jagawarga-gateway
     ports:
       - "8000:80"   # for functionalies
@@ -60,6 +60,8 @@ services:
   identity-service:
     build: "./src/services/identity/"
     container_name: jagawarga-identity
+    volumes:
+      - ./src/services/shared:/shared
     depends_on:
       db:
         condition: service_healthy
@@ -67,9 +69,9 @@ services:
         condition: service_started
     networks:
       - jagawarga-net
-    labels:
-      - "traefik.http.routers.report.rule=PathPrefix(`/identity`)"
-      - "traefik.http.services.identity.loadbalancer.server.port=3001"
+    # labels:
+    #   - "traefik.http.routers.report.rule=PathPrefix(`/identity`)"
+    #   - "traefik.http.services.identity.loadbalancer.server.port=3001"
     environment:
       - DB_PORT=26257
       - DB_HOST=db
@@ -84,6 +86,8 @@ services:
   anonymizer-service:
     build: "./src/services/anonymizer/"
     container_name: jagawarga-anonymizer
+    volumes:
+      - ./src/services/shared:/shared
     depends_on:
       db:
         condition: service_healthy
@@ -91,9 +95,9 @@ services:
         condition: service_started
     networks:
       - jagawarga-net
-    labels:
-      - "traefik.http.routers.anonymizer.rule=PathPrefix(`/anonymizer`)"
-      - "traefik.http.services.anonymizer.loadbalancer.server.port=3002"
+    # labels:
+    #   - "traefik.http.routers.anonymizer.rule=PathPrefix(`/anonymizer`)"
+    #   - "traefik.http.services.anonymizer.loadbalancer.server.port=3002"
     environment:
       - DB_PORT=26257
       - DB_HOST=db
@@ -115,9 +119,9 @@ services:
         condition: service_started
     networks:
       - jagawarga-net
-    labels:
-      - "traefik.http.routers.report.rule=PathPrefix(`/reports`)"
-      - "traefik.http.services.report.loadbalancer.server.port=4000"
+    # labels:
+    #   - "traefik.http.routers.report.rule=PathPrefix(`/reports`)"
+    #   - "traefik.http.services.report.loadbalancer.server.port=4000"
     environment:
       - DB_PORT=26257
       - DB_HOST=db
@@ -127,7 +131,7 @@ services:
     image: prom/prometheus:latest
     container_name: jagawarga-prometheus
     volumes:
-      - "./prometheus.yml:/etc/prometheus/prometheus.yml"
+      - "./src/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro"
       - prometheus-data:/prometheus
     ports:
       - "9090:9090"

@@ -59,7 +59,10 @@ const app = new Elysia()
       return { error: 'Internal server error', details: String(error) };
     }
   })
-  .listen(PORT);
+  .listen({
+    port: Number(PORT),
+    hostname: '0.0.0.0'
+  });
 
 console.log(`🧹 Anonymizer Service running at http://${app.server?.hostname}:${app.server?.port}`);
 
