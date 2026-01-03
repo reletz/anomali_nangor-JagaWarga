@@ -41,14 +41,18 @@ defmodule Report.MixProject do
     [
       {:phoenix, "~> 1.8.3"},
       {:phoenix_ecto, "~> 4.5"},
+      {:cors_plug, "~> 3.0"},
       {:ecto_sql, "~> 3.13"},
       {:postgrex, ">= 0.0.0"},
       {:phoenix_live_dashboard, "~> 0.8.3"},
+      {:prom_ex, "~> 1.11.0"},
+      {:quantum, "~> 3.0"},
       {:swoosh, "~> 1.16"},
       {:req, "~> 0.5"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
       {:gettext, "~> 1.0"},
+      {:gnat, "~> 1.12.1"},
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"}

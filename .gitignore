@@ -6,3 +6,4 @@ docs/tex/build/*
 *.p12
 *.pfx
 node_modules/
+GEMINI.md
