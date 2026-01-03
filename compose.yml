@@ -152,7 +152,8 @@ services:
     volumes:
       - "./src/monitoring/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro"
       - "./src/monitoring/grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro"
-      - grafana-data:/var/lib/grafana
+      - "./src/monitoring/grafana:/var/lib/grafana/dashboards:ro"
+      - grafana-data:/var/lib/grafana/dashboards
     networks:
       - jagawarga-net
     depends_on:
