@@ -1,0 +1,36 @@
+# Buat dynamic routingnya traefik
+http:
+  routers:
+    anonymizer:
+      rule: "PathPrefix(`/anonymizer`)"
+      service: anonymizer-service
+      entryPoints:
+        - web
+    
+    identity:
+      rule: "PathPrefix(`/identity`)"
+      service: identity-service
+      entryPoints:
+        - web
+    
+    report:
+      rule: "PathPrefix(`/reports`)"
+      service: report-service
+      entryPoints:
+        - web
+  
+  services:
+    anonymizer-service:
+      loadBalancer:
+        servers:
+          - url: "http://anonymizer-service:3002"
+    
+    identity-service:
+      loadBalancer:
+        servers:
+          - url: "http://identity-service:3001"
+    
+    report-service:
+      loadBalancer:
+        servers:
+          - url: "http://report-service:4000"
