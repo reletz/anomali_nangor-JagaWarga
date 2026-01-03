@@ -10,4 +10,4 @@ COPY . .
 RUN mix do compile
 EXPOSE 4000
 
-ENTRYPOINT ["mix", "phx.server"]
+CMD ["mix", "phx.server"]

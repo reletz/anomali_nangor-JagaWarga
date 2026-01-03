@@ -112,6 +112,10 @@ services:
   report-service:
     build: "./src/services/report/"
     container_name: jagawarga-report
+    volumes:
+      - ./src/services/report:/app
+      - /app/deps
+      - /app/_build
     depends_on:
       db:
         condition: service_healthy

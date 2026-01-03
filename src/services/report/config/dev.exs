@@ -2,13 +2,16 @@ import Config
 
 # Configure your database
 config :report, Report.Repo,
-  username: "postgres",
-  password: "postgres",
-  hostname: "localhost",
-  database: "report_dev",
+  username: "root",
+  password: "",
+  hostname: System.get_env("DB_HOST", "localhost"),
+  port: String.to_integer(System.get_env("DB_PORT", "26257")),
+  database: System.get_env("DB_NAME", "jagawargadb"),
   stacktrace: true,
   show_sensitive_data_on_connection_error: true,
-  pool_size: 10
+  pool_size: 10,
+  ssl: false,
+  migration_lock: nil
 
 # For development, we disable any cache and enable
 # debugging and code reloading.
