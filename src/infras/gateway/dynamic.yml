@@ -1,4 +1,3 @@
-# Buat dynamic routingnya traefik
 http:
   routers:
     anonymizer:
@@ -6,18 +5,38 @@ http:
       service: anonymizer-service
       entryPoints:
         - web
+      middlewares:
+        - strip-anonymizer
     
     identity:
       rule: "PathPrefix(`/identity`)"
       service: identity-service
       entryPoints:
         - web
+      middlewares:
+        - strip-identity
     
     report:
       rule: "PathPrefix(`/reports`)"
       service: report-service
       entryPoints:
         - web
+      middlewares:
+        - strip-reports
+  
+  middlewares:
+    strip-anonymizer:
+      stripPrefix:
+        prefixes:
+          - "/anonymizer"
+    strip-identity:
+      stripPrefix:
+        prefixes:
+          - "/identity"
+    strip-reports:
+      stripPrefix:
+        prefixes:
+          - "/reports"
   
   services:
     anonymizer-service:
