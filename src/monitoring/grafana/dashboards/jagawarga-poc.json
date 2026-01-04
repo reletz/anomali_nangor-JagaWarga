@@ -192,8 +192,8 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "rate(phoenix_endpoint_stop_duration_bucket[1m])",
-          "legendFormat": "Report Service",
+          "expr": "rate(report_prom_ex_phoenix_http_requests_total[1m])",
+          "legendFormat": "Report - {{path}}",
           "range": true,
           "refId": "C"
         }
@@ -383,10 +383,32 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "process_resident_memory_bytes{job=~\"identity-service|anonymizer-service|report-service\"}",
-          "legendFormat": "{{job}}",
+          "expr": "report_prom_ex_beam_memory_allocated_bytes",
+          "legendFormat": "Report Service (BEAM)",
           "range": true,
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "process_resident_memory_bytes{job=~\"identity-service|anonymizer-service\"}",
+          "legendFormat": "{{job}}",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "gnatsd_varz_mem",
+          "legendFormat": "NATS Memory",
+          "range": true,
+          "refId": "C"
         }
       ],
       "title": "Memory Usage by Service",
