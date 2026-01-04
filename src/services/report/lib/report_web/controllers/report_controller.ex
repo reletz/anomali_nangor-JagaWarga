@@ -42,7 +42,12 @@ defmodule ReportWeb.ReportController do
   end
 
   def show(conn, %{"id" => id}) do
-    report = Reports.get_report!(id)
-    render(conn, :show, report: report)
+    case Reports.get_report!(id) do
+      nil ->
+        conn
+        |> put_status(:not_found)
+        |> json(${error: "Report not found"})
+      report ->
+        render(conn, :show, report: report)
   end
 end

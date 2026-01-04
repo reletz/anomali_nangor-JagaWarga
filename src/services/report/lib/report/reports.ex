@@ -41,7 +41,7 @@ defmodule Report.Reports do
 
   Raises `Ecto.NoResultsError` if the Report does not exist.
   """
-  def get_report!(id), do: Repo.get!(Report, id)
+  def get_report!(id), do: Repo.get(Report, id)
 
   @doc """
   Lists reports that are in 'submitted' status and older than the given cutoff.
