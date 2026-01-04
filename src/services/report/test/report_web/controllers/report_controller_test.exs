@@ -154,12 +154,13 @@ defmodule ReportWeb.ReportControllerTest do
       assert data["content"] == report.content
     end
 
-    test "denies access to report from other department", %{conn: conn} do
+    test "denies access to private report from other department", %{conn: conn} do
+      # Private/anonymous reports should only be accessible by assigned department
       {:ok, other_report} =
         Reports.create_report(%{
           category: "kesehatan",
           content: "Health report",
-          privacy_level: "public",
+          privacy_level: "private",
           authority_department: "kesehatan",
           status: "submitted"
         })
