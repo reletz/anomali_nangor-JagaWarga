@@ -402,5 +402,170 @@ Report.Supervisor (one_for_one)
 - **PoC-appropriate**: 10-second intervals don't need cron precision
 - **Easier testing**: Can mock `Process.send_after` in tests
 
-### ⏳ Step 5: Observability & NATS (Pending)
-**Goal:** Wire up Prometheus and NATS publishing.
+### ✅ Step 5: Observability & NATS (Completed)
+**Goal:** Wire up Prometheus metrics and NATS event publishing.
+
+#### Requirements (from ProjectCanvas):
+- **NFR-O1**: System monitoring via Grafana dashboards
+- **NFR-SC1**: Scalability via NATS message buffering
+- Metrics endpoint: `GET /metrics` (Prometheus format)
+- Publish events to NATS on report creation/escalation
+
+#### Implementation Summary:
+
+1.  ✅ **PromEx Integration** (`Report.PromEx`):
+    *   File: `src/services/report/lib/report/prom_ex.ex`
+    *   Configured with built-in plugins:
+        - `Plugins.Application` - App info metrics
+        - `Plugins.Beam` - BEAM VM metrics (memory, processes, GC)
+        - `Plugins.Phoenix` - HTTP request metrics (duration, count, status)
+        - `Plugins.Ecto` - Database query metrics
+    *   Custom plugin for application-specific metrics
+
+2.  ✅ **Custom Metrics Plugin** (`Report.PromEx.ReportPlugin`):
+    *   File: `src/services/report/lib/report/prom_ex/report_plugin.ex`
+    *   Metrics exposed:
+        - `report_service_reports_created_total` - Counter with labels (category, department, privacy_level)
+        - `report_service_reports_escalated_total` - Counter with department label
+        - `report_service_escalation_checks_total` - Counter for worker checks
+        - `report_service_escalation_check_duration_milliseconds` - Histogram for check duration
+        - `report_service_nats_publish_total` - Counter with subject and status labels
+
+3.  ✅ **Telemetry Helper Module** (`Report.Telemetry`):
+    *   File: `src/services/report/lib/report/telemetry.ex`
+    *   Functions:
+        - `report_created/1` - Emit event when report created
+        - `report_escalated/1` - Emit event when report escalated
+        - `escalation_check_completed/2` - Emit event after escalation check
+        - `nats_publish/2` - Emit event when publishing to NATS
+
+4.  ✅ **NATS Publisher** (`Report.NatsPublisher`):
+    *   File: `src/services/report/lib/report/nats_publisher.ex`
+    *   Uses `gnat` library for NATS connectivity
+    *   Lazy connection (connects on first publish)
+    *   Functions:
+        - `publish_report_created/1` - Publish to `report.created` subject
+        - `publish_report_escalated/1` - Publish to `report.escalated` subject
+    *   Event payload includes:
+        - `event` - Event type
+        - `timestamp` - ISO8601 timestamp
+        - `data` - Report details (id, category, department, etc.)
+
+5.  ✅ **Controller Integration**:
+    *   Updated `ReportController.create/2` to:
+        - Emit `report_created` telemetry event
+        - Publish NATS event asynchronously via `Task.start/1`
+    *   Non-blocking: NATS publish doesn't delay HTTP response
+
+6.  ✅ **Escalation Worker Integration**:
+    *   Updated `perform_escalation_check/1` to:
+        - Track check duration
+        - Emit `escalation_check_completed` telemetry
+    *   Updated `escalate_single_report/1` to:
+        - Emit `report_escalated` telemetry
+        - Publish NATS event asynchronously
+
+7.  ✅ **Router Configuration**:
+    *   Added `/metrics` endpoint for Prometheus scraping
+    *   Uses PromEx.Plug for metric exposition
+
+8.  ✅ **Configuration** (`config/dev.exs`):
+    ```elixir
+    # NATS Publisher
+    config :report, Report.NatsPublisher,
+      url: System.get_env("NATS_URL", "nats://mb:4222"),
+      enabled: true,
+      connection_name: :report_nats
+
+    # PromEx
+    config :report, Report.PromEx,
+      disabled: false,
+      manual_metrics_start_delay: :no_delay,
+      grafana: :disabled
+    ```
+
+#### Architecture:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     Report Service                          │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌──────────────────┐     ┌─────────────────┐              │
+│  │ ReportController │────▶│ Report.Telemetry │──┐          │
+│  └──────────────────┘     └─────────────────┘  │          │
+│           │                                      │          │
+│           │                                      ▼          │
+│           │                              ┌─────────────┐   │
+│           └─────────────────────────────▶│ PromEx      │   │
+│                                          │ (Prometheus)│   │
+│  ┌──────────────────┐     ┌─────────────┐└─────────────┘   │
+│  │ EscalationWorker │────▶│NatsPublisher│                  │
+│  └──────────────────┘     └──────┬──────┘                  │
+│                                  │                          │
+└──────────────────────────────────┼──────────────────────────┘
+                                   │
+                                   ▼
+                            ┌─────────────┐
+                            │    NATS     │
+                            │  JetStream  │
+                            └─────────────┘
+```
+
+#### Metrics Endpoint Example:
+
+```
+GET /metrics
+
+# HELP report_service_reports_created_total Total number of reports created
+# TYPE report_service_reports_created_total counter
+report_service_reports_created_total{category="kebersihan",department="kebersihan",privacy_level="anonymous"} 5
+
+# HELP report_service_reports_escalated_total Total number of reports escalated
+# TYPE report_service_reports_escalated_total counter
+report_service_reports_escalated_total{department="kebersihan"} 3
+
+# HELP phoenix_http_request_duration_milliseconds HTTP request duration
+# TYPE phoenix_http_request_duration_milliseconds histogram
+...
+```
+
+#### NATS Event Payload Example:
+
+```json
+{
+  "event": "report.created",
+  "timestamp": "2026-01-04T05:30:00Z",
+  "data": {
+    "report_id": "abc-123-def",
+    "category": "kebersihan",
+    "authority_department": "kebersihan",
+    "privacy_level": "anonymous",
+    "status": "submitted",
+    "created_at": "2026-01-04T05:30:00Z"
+  }
+}
+```
+
+#### Testing Instructions:
+
+1. **Prometheus Metrics**:
+   ```bash
+   curl http://localhost:4000/metrics
+   ```
+
+2. **NATS Events** (check NATS logs or subscribe):
+   ```bash
+   # Subscribe to all report events
+   nats sub "report.>" --server nats://localhost:4222
+   
+   # Create a report to trigger event
+   curl -X POST http://localhost:4000/api/reports \
+     -H "Content-Type: application/json" \
+     -d '{"report": {"category": "kebersihan", ...}}'
+   ```
+
+3. **Grafana Dashboard**:
+   - Access Grafana at http://localhost:3000
+   - Add Prometheus datasource pointing to http://prometheus:9090
+   - Import PromEx dashboards or create custom panels

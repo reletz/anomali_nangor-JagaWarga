@@ -10,6 +10,12 @@ defmodule ReportWeb.Router do
     get "/health", HealthController, :index
   end
 
+  # Prometheus metrics endpoint
+  # Exposed at GET /metrics for Prometheus scraping
+  scope "/" do
+    get "/metrics", PromEx.Plug, prom_ex_module: Report.PromEx
+  end
+
   scope "/api", ReportWeb do
     pipe_through :api
 

@@ -77,3 +77,22 @@ config :report, Report.EscalationWorker,
   check_interval_ms: 10_000,
   stale_threshold_sec: 30,
   enabled: true
+
+# NATS Publisher Configuration
+# - url: NATS server URL
+# - enabled: Whether to publish events to NATS
+# - connection_name: Registered name for the NATS connection process
+config :report, Report.NatsPublisher,
+  url: System.get_env("NATS_URL", "nats://mb:4222"),
+  enabled: true,
+  connection_name: :report_nats
+
+# PromEx Configuration
+# - disabled: Set to true to disable PromEx (useful for testing)
+# - manual_metrics_start_delay: Delay before starting metrics collection
+# - grafana: Grafana configuration for dashboard upload (disabled in dev)
+config :report, Report.PromEx,
+  disabled: false,
+  manual_metrics_start_delay: :no_delay,
+  drop_metrics_groups: [],
+  grafana: :disabled

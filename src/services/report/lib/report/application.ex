@@ -10,6 +10,8 @@ defmodule Report.Application do
     children = [
       ReportWeb.Telemetry,
       Report.Repo,
+      # PromEx for Prometheus metrics - must be before Endpoint
+      Report.PromEx,
       # Escalation Worker - checks for stale reports every 10s
       # Must be after Repo since it needs DB access
       Report.EscalationWorker,

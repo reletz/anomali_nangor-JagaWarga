@@ -3,6 +3,8 @@ defmodule ReportWeb.ReportController do
 
   alias Report.Reports
   alias Report.Report
+  alias Report.NatsPublisher
+  alias Report.Telemetry
 
   action_fallback ReportWeb.FallbackController
 
@@ -27,8 +29,13 @@ defmodule ReportWeb.ReportController do
   """
   def create(conn, %{"report" => report_params}) do
     with {:ok, %Report{} = report} <- Reports.create_report(report_params) do
-      # TODO: Publish NATS event in Step 5
-      # Gnat.pub(:gnat, "report.created", Jason.encode!(%{report_id: report.id}))
+      # Emit telemetry event for metrics
+      Telemetry.report_created(report)
+
+      # Publish NATS event (async, don't block response)
+      Task.start(fn ->
+        NatsPublisher.publish_report_created(report)
+      end)
 
       conn
       |> put_status(:created)

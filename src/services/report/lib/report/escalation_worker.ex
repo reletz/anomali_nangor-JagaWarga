@@ -128,6 +128,7 @@ defmodule Report.EscalationWorker do
 
   defp perform_escalation_check(state) do
     threshold_sec = state.config.stale_threshold_sec
+    start_time = System.monotonic_time(:millisecond)
 
     # Calculate cutoff time (now - threshold)
     cutoff = DateTime.utc_now()
@@ -137,6 +138,10 @@ defmodule Report.EscalationWorker do
     # Query for stale reports
     stale_reports = Reports.list_stale_reports(cutoff)
     escalated_count = escalate_reports(stale_reports)
+
+    # Emit telemetry for metrics
+    duration_ms = System.monotonic_time(:millisecond) - start_time
+    Report.Telemetry.escalation_check_completed(duration_ms, escalated_count)
 
     # Update state
     %{state |
@@ -172,6 +177,15 @@ defmodule Report.EscalationWorker do
           - Age: #{age_seconds}s
           - Escalated at: #{escalated.escalated_at}
         """)
+
+        # Emit telemetry for metrics
+        Report.Telemetry.report_escalated(escalated)
+
+        # Publish NATS event (async)
+        Task.start(fn ->
+          Report.NatsPublisher.publish_report_escalated(escalated)
+        end)
+
         :ok
 
       {:error, changeset} ->
