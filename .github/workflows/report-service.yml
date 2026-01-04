@@ -121,10 +121,12 @@ jobs:
         run: mix deps.get
 
       - name: Run unit tests (exclude DB tests)
-        run: mix test --exclude integration --exclude db
+        # Use 'mix run' to bypass 'test' alias which runs ecto.create
+        run: mix run -e "Mix.Task.run(:test, [\"--exclude\", \"integration\", \"--exclude\", \"db\"])"
         env:
           # Disable components that need external services
           NATS_ENABLED: false
+          START_REPO: false
 
   # ==========================================================================
   # Job 4: Integration Tests (with CockroachDB)
@@ -199,6 +201,7 @@ jobs:
           DB_NAME: report_test
           DB_USER: root
           DB_PASSWORD: ""
+          START_REPO: true
 
       - name: Run integration tests
         run: mix test --include integration
@@ -209,6 +212,7 @@ jobs:
           DB_USER: root
           DB_PASSWORD: ""
           NATS_URL: nats://localhost:4222
+          START_REPO: true
 
   # ==========================================================================
   # Job 5: Runtime Smoke Test (Docker)
