@@ -1,28 +1,43 @@
 http:
   routers:
+    frontend:
+      rule: "PathPrefix(`/`)"
+      service: frontend-service
+      entryPoints:
+        - web
+      priority: 1
+      middlewares:
+        - frontend-headers
+
     anonymizer:
       rule: "PathPrefix(`/anonymizer`)"
       service: anonymizer-service
       entryPoints:
         - web
+      priority: 10
       middlewares:
         - strip-anonymizer
+        - cors-headers
     
     identity:
       rule: "PathPrefix(`/identity`)"
       service: identity-service
       entryPoints:
         - web
+      priority: 10
       middlewares:
         - strip-identity
+        - cors-headers
     
     report:
       rule: "PathPrefix(`/reports`)"
       service: report-service
       entryPoints:
         - web
+      priority: 10
       middlewares:
         - strip-reports
+        - cors-headers
   
   middlewares:
     strip-anonymizer:
@@ -37,7 +52,39 @@ http:
       stripPrefix:
         prefixes:
           - "/reports"
-  
+
+    cors-headers:
+      headers:
+        accessControlAllowMethods:
+          - GET
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+          - OPTIONS
+        accessControlAllowHeaders:
+          - "*"
+        accessControlAllowOriginList:
+          - "http://localhost:5000"
+          - "http://localhost:8000"
+        accessControlAllowCredentials: true
+        accessControlMaxAge: 86400
+        addVaryHeader: true
+    
+    frontend-headers:
+      headers:
+        customResponseHeaders:
+          X-Frame-Options: "SAMEORIGIN"
+          X-Content-Type-Options: "nosniff"
+          X-XSS-Protection: "1; mode=block"
+          Referrer-Policy: "strict-origin-when-cross-origin"
+
+  services:
+    frontend-service:
+      loadBalancer:
+        servers:
+          - url: "http://frontend:5000"
+
   services:
     anonymizer-service:
       loadBalancer:
