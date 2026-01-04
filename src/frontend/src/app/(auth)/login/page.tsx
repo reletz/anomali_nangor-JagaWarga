@@ -126,7 +126,6 @@ export default function LoginPage() {
                 onChange={(e) => setCitizenData({ ...citizenData, password: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50"
                 placeholder=""
-                disabled
               />
               <p className="text-xs text-gray-500 mt-1">Password:  (hardcoded)</p>
             </div>
@@ -177,7 +176,6 @@ export default function LoginPage() {
                 onChange={(e) => setAuthorityData({ ...authorityData, password: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50"
                 placeholder=""
-                disabled
               />
               <p className="text-xs text-gray-500 mt-1">Password:  (hardcoded)</p>
             </div>
