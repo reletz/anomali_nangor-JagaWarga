@@ -17,24 +17,92 @@ defmodule Report.Reports do
   end
 
   @doc """
-  Returns the list of reports.
+  Returns the list of public reports (privacy_level = 'public').
+  Sorted by creation date descending (newest first).
   """
-  def list_reports do
+  def list_public_reports do
     Report
-    |> order_by([desc: :created_at])
+    |> where([r], r.privacy_level == "public")
+    |> order_by([r], desc: r.created_at)
     |> Repo.all()
   end
 
   @doc """
-  Returns the list of reports filtered by authority department.
+  Returns the list of public reports filtered by department.
   """
-  def list_by_department(department) do
-    from(r in Report,
-      where: r.authority_department == ^department,
-      order_by: [desc: r.created_at]
-    )
+  def list_public_reports_by_department(department) do
+    Report
+    |> where([r], r.privacy_level == "public")
+    |> where([r], r.authority_department == ^department)
+    |> order_by([r], desc: r.created_at)
     |> Repo.all()
   end
+
+  @doc """
+  Returns the list of public reports filtered by status.
+  """
+  def list_public_reports_by_status(status) do
+    Report
+    |> where([r], r.privacy_level == "public")
+    |> where([r], r.status == ^status)
+    |> order_by([r], desc: r.created_at)
+    |> Repo.all()
+  end
+
+  @doc """
+  Returns reports submitted by a specific reporter.
+  Citizens can view their own reports (excludes anonymous reports).
+  """
+  def list_reports_by_reporter(reporter_id) do
+    Report
+    |> where([r], r.reporter_id == ^reporter_id)
+    |> where([r], r.privacy_level in ["public", "private"])
+    |> order_by([r], desc: r.created_at)
+    |> Repo.all()
+  end
+
+  @doc """
+  Gets a single report if it belongs to the reporter.
+  """
+  def get_report_by_reporter(report_id, reporter_id) do
+    case Repo.get(Report, report_id) do
+      nil ->
+        {:error, :not_found}
+
+      report ->
+        # Allow if it's the reporter's own report (not anonymous)
+        if report.reporter_id == reporter_id and report.privacy_level != "anonymous" do
+          {:ok, report}
+        else
+          {:error, :forbidden}
+        end
+    end
+  end
+
+  @doc """
+  Returns all reports for a specific authority department.
+  Authorities can see ALL reports assigned to them (public, private, anonymous).
+  """
+  def list_reports_by_department(department) do
+    Report
+    |> where([r], r.authority_department == ^department)
+    |> order_by([r], desc: r.created_at)
+    |> Repo.all()
+  end
+  
+  @doc """
+  Returns the list of all reports (admin use only).
+  """
+  def list_reports do
+    Report
+    |> order_by([r], desc: r.created_at)
+    |> Repo.all()
+  end
+
+  @doc """
+  Gets a single report or returns nil if not found
+  """
+  def get_report(id), do: Repo.get(Report, id)
 
   @doc """
   Gets a single report.

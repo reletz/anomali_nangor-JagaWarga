@@ -66,9 +66,7 @@
         "justifyMode": "auto",
         "orientation": "horizontal",
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -154,11 +152,7 @@
       "id": 2,
       "options": {
         "legend": {
-          "calcs": [
-            "mean",
-            "lastNotNull",
-            "max"
-          ],
+          "calcs": ["mean", "lastNotNull", "max"],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
@@ -176,8 +170,8 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "rate(identity_requests_total[1m])",
-          "legendFormat": "Identity Service",
+          "expr": "rate(identity_http_requests_total[1m])",
+          "legendFormat": "Identity - {{route}}",
           "range": true,
           "refId": "A"
         },
@@ -187,10 +181,21 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "rate(anonymizer_requests_total[1m])",
-          "legendFormat": "Anonymizer Service",
+          "expr": "rate(anonymizer_http_requests_total[1m])",
+          "legendFormat": "Anonymizer - {{route}}",
           "range": true,
           "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "rate(report_prom_ex_phoenix_http_requests_total[1m])",
+          "legendFormat": "Report - {{path}}",
+          "range": true,
+          "refId": "C"
         }
       ],
       "title": "Request Rate (req/s)",
@@ -259,11 +264,7 @@
       "id": 3,
       "options": {
         "legend": {
-          "calcs": [
-            "mean",
-            "lastNotNull",
-            "max"
-          ],
+          "calcs": ["mean", "lastNotNull", "max"],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
@@ -281,7 +282,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "rate(nats_varz_in_msgs[1m])",
+          "expr": "rate(gnatsd_varz_in_msgs[1m])",
           "legendFormat": "Messages In",
           "range": true,
           "refId": "A"
@@ -292,7 +293,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "rate(nats_varz_out_msgs[1m])",
+          "expr": "rate(gnatsd_varz_out_msgs[1m])",
           "legendFormat": "Messages Out",
           "range": true,
           "refId": "B"
@@ -364,11 +365,7 @@
       "id": 4,
       "options": {
         "legend": {
-          "calcs": [
-            "mean",
-            "lastNotNull",
-            "max"
-          ],
+          "calcs": ["mean", "lastNotNull", "max"],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
@@ -386,10 +383,32 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "process_resident_memory_bytes{job=~\"identity-service|anonymizer-service|report-service\"}",
-          "legendFormat": "{{job}}",
+          "expr": "report_prom_ex_beam_memory_allocated_bytes",
+          "legendFormat": "Report Service (BEAM)",
           "range": true,
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "process_resident_memory_bytes{job=~\"identity-service|anonymizer-service\"}",
+          "legendFormat": "{{job}}",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "gnatsd_varz_mem",
+          "legendFormat": "NATS Memory",
+          "range": true,
+          "refId": "C"
         }
       ],
       "title": "Memory Usage by Service",
@@ -399,10 +418,7 @@
   "refresh": "5s",
   "schemaVersion": 38,
   "style": "dark",
-  "tags": [
-    "jagawarga",
-    "poc"
-  ],
+  "tags": ["jagawarga", "poc"],
   "templating": {
     "list": []
   },

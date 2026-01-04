@@ -1,6 +1,9 @@
 defmodule Report.Repo.Migrations.CreateReports do
   use Ecto.Migration
 
+  # Disable DDL transaction for CockroachDB compatibility
+  @disable_ddl_transaction true
+
   def change do
     create table(:reports, primary_key: false) do
       add :id, :binary_id, primary_key: true
@@ -18,7 +21,15 @@ defmodule Report.Repo.Migrations.CreateReports do
     end
 
     create index(:reports, [:authority_department, :status])
-    create index(:reports, [:created_at, :status], where: "status = 'submitted'", name: :idx_reports_stale)
-    create index(:reports, [:privacy_level], where: "privacy_level = 'public'", name: :idx_reports_privacy)
+
+    create index(:reports, [:created_at, :status],
+             where: "status = 'submitted'",
+             name: :idx_reports_stale
+           )
+
+    create index(:reports, [:privacy_level],
+             where: "privacy_level = 'public'",
+             name: :idx_reports_privacy
+           )
   end
 end
