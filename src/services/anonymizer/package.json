@@ -10,7 +10,8 @@
   "dependencies": {
     "elysia": "^1.1.23",
     "postgres": "^3.4.4",
-    "nats": "^2.28.2"
+    "nats": "^2.28.2",
+    "prom-client": "^15.1.2"
   },
   "devDependencies": {
     "bun-types": "latest"
