@@ -48,3 +48,6 @@ config :report, Report.NatsPublisher, enabled: false
 
 # Disable PromEx during tests
 config :report, Report.PromEx, disabled: true
+
+# Disable Repo by default for unit tests (integration tests enable it)
+config :report, start_repo: System.get_env("START_REPO", "false") == "true"
