@@ -242,9 +242,20 @@ jobs:
 
       - name: Start services with docker-compose
         run: |
-          docker compose -f compose.yml up -d db mb gateway report-service
-        env:
-          COMPOSE_PROJECT_NAME: jagawarga-test
+          echo "Starting services..."
+          docker compose -f compose.yml up -d db mb gateway report-service 2>&1 || {
+            echo "Failed to start services!"
+            echo "Docker info:"
+            docker info
+            echo ""
+            echo "Compose config validation:"
+            docker compose -f compose.yml config
+            exit 1
+          }
+          echo "Waiting for containers to initialize..."
+          sleep 5
+          echo "Current containers:"
+          docker ps -a
 
       - name: Wait for DB to be ready
         run: |
