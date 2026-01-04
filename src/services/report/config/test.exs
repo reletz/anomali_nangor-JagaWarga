@@ -10,10 +10,12 @@ config :report, Report.Repo,
   password: System.get_env("DB_PASSWORD", ""),
   hostname: System.get_env("DB_HOST", "localhost"),
   port: String.to_integer(System.get_env("DB_PORT", "26257")),
-  database: System.get_env("DB_NAME", "report_test") <> "#{System.get_env("MIX_TEST_PARTITION", "")}",
+  database:
+    System.get_env("DB_NAME", "report_test") <> "#{System.get_env("MIX_TEST_PARTITION", "")}",
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: System.schedulers_online() * 2,
-  migration_lock: nil  # CockroachDB compatibility
+  # CockroachDB compatibility
+  migration_lock: nil
 
 # We don't run a server during test. If one is required,
 # you can enable the server option below.
@@ -39,13 +41,10 @@ config :phoenix,
   sort_verified_routes_query_params: true
 
 # Disable Escalation Worker during tests (to avoid side effects)
-config :report, Report.EscalationWorker,
-  enabled: false
+config :report, Report.EscalationWorker, enabled: false
 
 # Disable NATS during tests
-config :report, Report.NatsPublisher,
-  enabled: false
+config :report, Report.NatsPublisher, enabled: false
 
 # Disable PromEx during tests
-config :report, Report.PromEx,
-  disabled: true
+config :report, Report.PromEx, disabled: true

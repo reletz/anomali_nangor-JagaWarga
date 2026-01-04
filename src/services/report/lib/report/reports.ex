@@ -21,7 +21,7 @@ defmodule Report.Reports do
   """
   def list_reports do
     Report
-    |> order_by([desc: :created_at])
+    |> order_by(desc: :created_at)
     |> Repo.all()
   end
 

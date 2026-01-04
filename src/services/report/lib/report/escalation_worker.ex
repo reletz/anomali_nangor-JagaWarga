@@ -31,8 +31,10 @@ defmodule Report.EscalationWorker do
   alias Report.Reports
 
   # Default configuration
-  @default_check_interval_ms 10_000    # Check every 10 seconds
-  @default_stale_threshold_sec 30      # Reports older than 30s are stale
+  # Check every 10 seconds
+  @default_check_interval_ms 10_000
+  # Reports older than 30s are stale
+  @default_stale_threshold_sec 30
 
   # ============================================================================
   # Client API
@@ -78,12 +80,13 @@ defmodule Report.EscalationWorker do
       # Schedule first check
       schedule_check(config.check_interval_ms)
 
-      {:ok, %{
-        config: config,
-        last_check: nil,
-        total_escalated: 0,
-        checks_performed: 0
-      }}
+      {:ok,
+       %{
+         config: config,
+         last_check: nil,
+         total_escalated: 0,
+         checks_performed: 0
+       }}
     else
       Logger.info("[EscalationWorker] Disabled via configuration")
       {:ok, %{config: config, enabled: false}}
@@ -117,7 +120,8 @@ defmodule Report.EscalationWorker do
 
     %{
       check_interval_ms: Keyword.get(app_config, :check_interval_ms, @default_check_interval_ms),
-      stale_threshold_sec: Keyword.get(app_config, :stale_threshold_sec, @default_stale_threshold_sec),
+      stale_threshold_sec:
+        Keyword.get(app_config, :stale_threshold_sec, @default_stale_threshold_sec),
       enabled: Keyword.get(app_config, :enabled, true)
     }
   end
@@ -131,9 +135,10 @@ defmodule Report.EscalationWorker do
     start_time = System.monotonic_time(:millisecond)
 
     # Calculate cutoff time (now - threshold)
-    cutoff = DateTime.utc_now()
-             |> DateTime.add(-threshold_sec, :second)
-             |> DateTime.truncate(:second)
+    cutoff =
+      DateTime.utc_now()
+      |> DateTime.add(-threshold_sec, :second)
+      |> DateTime.truncate(:second)
 
     # Query for stale reports
     stale_reports = Reports.list_stale_reports(cutoff)
@@ -144,10 +149,11 @@ defmodule Report.EscalationWorker do
     Report.Telemetry.escalation_check_completed(duration_ms, escalated_count)
 
     # Update state
-    %{state |
-      last_check: DateTime.utc_now(),
-      total_escalated: state.total_escalated + escalated_count,
-      checks_performed: state.checks_performed + 1
+    %{
+      state
+      | last_check: DateTime.utc_now(),
+        total_escalated: state.total_escalated + escalated_count,
+        checks_performed: state.checks_performed + 1
     }
   end
 
@@ -161,7 +167,10 @@ defmodule Report.EscalationWorker do
       |> Enum.map(&escalate_single_report/1)
       |> Enum.count(fn result -> result == :ok end)
 
-    Logger.info("[EscalationWorker] Successfully escalated #{escalated}/#{length(reports)} reports")
+    Logger.info(
+      "[EscalationWorker] Successfully escalated #{escalated}/#{length(reports)} reports"
+    )
+
     escalated
   end
 
@@ -169,6 +178,7 @@ defmodule Report.EscalationWorker do
     case Reports.escalate_report(report) do
       {:ok, escalated} ->
         age_seconds = DateTime.diff(DateTime.utc_now(), report.created_at, :second)
+
         Logger.info("""
         [EscalationWorker] Escalated report
           - ID: #{escalated.id}
@@ -193,6 +203,7 @@ defmodule Report.EscalationWorker do
         [EscalationWorker] Failed to escalate report #{report.id}
           - Errors: #{inspect(changeset.errors)}
         """)
+
         :error
     end
   end

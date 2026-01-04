@@ -29,6 +29,7 @@ defmodule Report.ReportsTest do
 
     test "creates a report with reporter_id" do
       reporter_id = Ecto.UUID.generate()
+
       attrs = %{
         reporter_id: reporter_id,
         category: "infrastruktur",
@@ -51,33 +52,37 @@ defmodule Report.ReportsTest do
 
   describe "list_reports/0" do
     test "returns all reports ordered by created_at desc" do
-      {:ok, report1} = Reports.create_report(%{
-        category: "kebersihan",
-        content: "First report",
-        location: "Location 1",
-        privacy_level: "anonymous",
-        authority_department: "kebersihan",
-        status: "submitted"
-      })
+      {:ok, report1} =
+        Reports.create_report(%{
+          category: "kebersihan",
+          content: "First report",
+          location: "Location 1",
+          privacy_level: "anonymous",
+          authority_department: "kebersihan",
+          status: "submitted"
+        })
 
       # Small delay to ensure different timestamps
       Process.sleep(10)
 
-      {:ok, report2} = Reports.create_report(%{
-        category: "infrastruktur",
-        content: "Second report",
-        location: "Location 2",
-        privacy_level: "public",
-        authority_department: "infrastruktur",
-        status: "submitted"
-      })
+      {:ok, report2} =
+        Reports.create_report(%{
+          category: "infrastruktur",
+          content: "Second report",
+          location: "Location 2",
+          privacy_level: "public",
+          authority_department: "infrastruktur",
+          status: "submitted"
+        })
 
       reports = Reports.list_reports()
       assert length(reports) >= 2
-      
+
       # Second report should come first (newest)
       report_ids = Enum.map(reports, & &1.id)
-      assert Enum.find_index(report_ids, &(&1 == report2.id)) < Enum.find_index(report_ids, &(&1 == report1.id))
+
+      assert Enum.find_index(report_ids, &(&1 == report2.id)) <
+               Enum.find_index(report_ids, &(&1 == report1.id))
     end
 
     test "returns empty list when no reports exist" do
@@ -90,23 +95,25 @@ defmodule Report.ReportsTest do
 
   describe "list_by_department/1" do
     test "filters reports by authority_department" do
-      {:ok, _kebersihan_report} = Reports.create_report(%{
-        category: "kebersihan",
-        content: "Kebersihan report",
-        location: "Location",
-        privacy_level: "anonymous",
-        authority_department: "kebersihan",
-        status: "submitted"
-      })
+      {:ok, _kebersihan_report} =
+        Reports.create_report(%{
+          category: "kebersihan",
+          content: "Kebersihan report",
+          location: "Location",
+          privacy_level: "anonymous",
+          authority_department: "kebersihan",
+          status: "submitted"
+        })
 
-      {:ok, _infrastruktur_report} = Reports.create_report(%{
-        category: "infrastruktur",
-        content: "Infrastruktur report",
-        location: "Location",
-        privacy_level: "anonymous",
-        authority_department: "infrastruktur",
-        status: "submitted"
-      })
+      {:ok, _infrastruktur_report} =
+        Reports.create_report(%{
+          category: "infrastruktur",
+          content: "Infrastruktur report",
+          location: "Location",
+          privacy_level: "anonymous",
+          authority_department: "infrastruktur",
+          status: "submitted"
+        })
 
       kebersihan_reports = Reports.list_by_department("kebersihan")
       assert Enum.all?(kebersihan_reports, &(&1.authority_department == "kebersihan"))
@@ -123,14 +130,15 @@ defmodule Report.ReportsTest do
 
   describe "get_report!/1" do
     test "returns the report with given id" do
-      {:ok, report} = Reports.create_report(%{
-        category: "kebersihan",
-        content: "Test report",
-        location: "Location",
-        privacy_level: "anonymous",
-        authority_department: "kebersihan",
-        status: "submitted"
-      })
+      {:ok, report} =
+        Reports.create_report(%{
+          category: "kebersihan",
+          content: "Test report",
+          location: "Location",
+          privacy_level: "anonymous",
+          authority_department: "kebersihan",
+          status: "submitted"
+        })
 
       fetched = Reports.get_report!(report.id)
       assert fetched.id == report.id
@@ -139,6 +147,7 @@ defmodule Report.ReportsTest do
 
     test "raises Ecto.NoResultsError for non-existent id" do
       fake_id = Ecto.UUID.generate()
+
       assert_raise Ecto.NoResultsError, fn ->
         Reports.get_report!(fake_id)
       end
@@ -148,49 +157,53 @@ defmodule Report.ReportsTest do
   describe "list_stale_reports/1" do
     test "returns reports older than cutoff with submitted status" do
       # Create a report
-      {:ok, report} = Reports.create_report(%{
-        category: "kebersihan",
-        content: "Stale report",
-        location: "Location",
-        privacy_level: "anonymous",
-        authority_department: "kebersihan",
-        status: "submitted"
-      })
+      {:ok, report} =
+        Reports.create_report(%{
+          category: "kebersihan",
+          content: "Stale report",
+          location: "Location",
+          privacy_level: "anonymous",
+          authority_department: "kebersihan",
+          status: "submitted"
+        })
 
       # Cutoff in the future should include this report
       future_cutoff = DateTime.utc_now() |> DateTime.add(60, :second)
       stale_reports = Reports.list_stale_reports(future_cutoff)
-      
+
       assert Enum.any?(stale_reports, &(&1.id == report.id))
     end
 
     test "excludes reports with non-submitted status" do
-      {:ok, report} = Reports.create_report(%{
-        category: "kebersihan",
-        content: "Escalated report",
-        location: "Location",
-        privacy_level: "anonymous",
-        authority_department: "kebersihan",
-        status: "escalated"  # Already escalated
-      })
+      {:ok, report} =
+        Reports.create_report(%{
+          category: "kebersihan",
+          content: "Escalated report",
+          location: "Location",
+          privacy_level: "anonymous",
+          authority_department: "kebersihan",
+          # Already escalated
+          status: "escalated"
+        })
 
       future_cutoff = DateTime.utc_now() |> DateTime.add(60, :second)
       stale_reports = Reports.list_stale_reports(future_cutoff)
-      
+
       refute Enum.any?(stale_reports, &(&1.id == report.id))
     end
   end
 
   describe "escalate_report/1" do
     test "updates report status to escalated" do
-      {:ok, report} = Reports.create_report(%{
-        category: "kebersihan",
-        content: "To be escalated",
-        location: "Location",
-        privacy_level: "anonymous",
-        authority_department: "kebersihan",
-        status: "submitted"
-      })
+      {:ok, report} =
+        Reports.create_report(%{
+          category: "kebersihan",
+          content: "To be escalated",
+          location: "Location",
+          privacy_level: "anonymous",
+          authority_department: "kebersihan",
+          status: "submitted"
+        })
 
       assert {:ok, escalated} = Reports.escalate_report(report)
       assert escalated.status == "escalated"
@@ -198,18 +211,19 @@ defmodule Report.ReportsTest do
     end
 
     test "sets escalated_at timestamp" do
-      {:ok, report} = Reports.create_report(%{
-        category: "kebersihan",
-        content: "To be escalated",
-        location: "Location",
-        privacy_level: "anonymous",
-        authority_department: "kebersihan",
-        status: "submitted"
-      })
+      {:ok, report} =
+        Reports.create_report(%{
+          category: "kebersihan",
+          content: "To be escalated",
+          location: "Location",
+          privacy_level: "anonymous",
+          authority_department: "kebersihan",
+          status: "submitted"
+        })
 
       before_escalation = DateTime.utc_now() |> DateTime.add(-1, :second)
       {:ok, escalated} = Reports.escalate_report(report)
-      
+
       assert DateTime.compare(escalated.escalated_at, before_escalation) == :gt
     end
   end
