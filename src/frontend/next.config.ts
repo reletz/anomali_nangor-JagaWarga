@@ -8,10 +8,7 @@ const nextConfig: NextConfig = {
   },
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
-  },
-  serverRuntimeConfig: {
-    port: parseInt(process.env.PORT || '5000', 10),
-  },
+  }
 };
 
 export default nextConfig;
