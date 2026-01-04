@@ -2,14 +2,22 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import type { CreateReportRequest, Category, PrivacyLevel } from '@/lib/types/report'
 import { CATEGORIES, PRIVACY_LEVELS } from '@/lib/types/report'
 import { reportsApi } from '@/lib/api/reports'
+import { Send, Trash2, Shield, Heart, Wrench } from 'lucide-react'
+
+const CATEGORY_ICONS: Record<Category, React.ReactNode> = {
+  sampah: <Trash2 className="w-5 h-5" />,
+  keamanan: <Shield className="w-5 h-5" />,
+  kesehatan: <Heart className="w-5 h-5" />,
+  infrastruktur: <Wrench className="w-5 h-5" />,
+}
 
 export default function ReportForm() {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   const [formData, setFormData] = useState<CreateReportRequest>({
     category: '' as Category,
@@ -21,7 +29,6 @@ export default function ReportForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError(null)
     setIsSubmitting(true)
 
     try {
@@ -40,11 +47,11 @@ export default function ReportForm() {
 
       await reportsApi.createReport(data)
       
-      alert('✅ Laporan berhasil dikirim!')
+      toast.success('Laporan berhasil dikirim!')
       router.push('/reports')
     } catch (err: any) {
       console.error('Submit error:', err)
-      setError(err.response?.data?.message || 'Gagal mengirim laporan')
+      toast.error(err.response?.data?.error || 'Gagal mengirim laporan')
     } finally {
       setIsSubmitting(false)
     }
@@ -52,12 +59,6 @@ export default function ReportForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-          {error}
-        </div>
-      )}
-
       {/* Category */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -72,7 +73,7 @@ export default function ReportForm() {
           <option value="">Pilih kategori...</option>
           {CATEGORIES.map((cat) => (
             <option key={cat.value} value={cat.value}>
-              {cat.icon} {cat.label}
+              {cat.label}
             </option>
           ))}
         </select>
@@ -141,9 +142,10 @@ export default function ReportForm() {
       <button
         type="submit"
         disabled={isSubmitting}
-        className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+        className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center space-x-2"
       >
-        {isSubmitting ? 'Mengirim...' : 'Kirim Laporan'}
+        <Send className="w-5 h-5" />
+        <span>{isSubmitting ? 'Mengirim...' : 'Kirim Laporan'}</span>
       </button>
     </form>
   )
