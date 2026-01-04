@@ -2,9 +2,30 @@ import { Elysia } from 'elysia';
 import { jwt } from '@elysiajs/jwt';
 import { sql, testConnection } from '../shared/db';
 import { getNatsConnection } from '../shared/nats';
+import client from 'prom-client';
 
 const PORT = process.env.IDENTITY_PORT || process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-change-in-production';
+
+const register = new client.Registry();
+register.setDefaultLabels({ service: 'identity' });
+client.collectDefaultMetrics({ register });
+
+const httpRequests = new client.Counter({
+  name: 'identity_http_requests_total',
+  help: 'Total HTTP requests',
+  labelNames: ['method', 'route', 'status'],
+});
+
+const httpDuration = new client.Histogram({
+  name: 'identity_http_request_duration_seconds',
+  help: 'HTTP request duration in seconds',
+  labelNames: ['method', 'route'],
+  buckets: [0.05, 0.1, 0.3, 0.5, 1, 2, 5],
+});
+
+register.registerMetric(httpRequests);
+register.registerMetric(httpDuration);
 
 // Retry helper for resilience
 async function withRetry<T>(
@@ -32,11 +53,15 @@ const app = new Elysia()
     })
   )
   // Health check endpoint
-  .get('/health', async () => {
+  .get('/health', async ({ set }) => {
+    const end = httpDuration.startTimer({ method: 'GET', route: '/health' });
     try {
       const dbOk = await testConnection();
       const natsConnection = await getNatsConnection();
       const natsOk = !natsConnection.isClosed();
+
+      httpRequests.inc({ method: 'GET', route: '/health', status: '200' });
+      end();
 
       return {
         status: dbOk && natsOk ? 'healthy' : 'degraded',
@@ -48,6 +73,9 @@ const app = new Elysia()
         },
       };
     } catch (error) {
+      httpRequests.inc({ method: 'GET', route: '/health', status: '500' });
+      set.status = 500;
+      end();
       return {
         status: 'unhealthy',
         service: 'identity',
@@ -56,13 +84,22 @@ const app = new Elysia()
       };
     }
   })
+  .get('/metrics', async () =>
+    new Response(await register.metrics(), {
+      status: 200,
+      headers: { 'Content-Type': register.contentType },
+    })
+  )
   // Mock JWT validation endpoint for authorities
   .post('/validate', async ({ body, jwt, set }) => {
+    const end = httpDuration.startTimer({ method: 'POST', route: '/validate' });
     try {
       const { token } = body as { token: string };
 
       if (!token) {
         set.status = 400;
+        httpRequests.inc({ method: 'POST', route: '/validate', status: '400' });
+        end();
         return { error: 'Token is required' };
       }
 
@@ -83,31 +120,40 @@ const app = new Elysia()
 
       if (user.length === 0) {
         set.status = 401;
+        httpRequests.inc({ method: 'POST', route: '/validate', status: '401' });
+        end();
         return { error: 'User not found' };
       }
 
+      httpRequests.inc({ method: 'POST', route: '/validate', status: '200' });
+      end();
       return {
         valid: true,
         user: {
           id: user[0].id,
           email: user[0].email,
-          role: user[0].role,
+          name: user[0].name,
           department: user[0].department,
         },
       };
     } catch (error) {
       console.error('Validation error:', error);
       set.status = 500;
+      httpRequests.inc({ method: 'POST', route: '/validate', status: '500' });
+      end();
       return { error: 'Internal server error', details: String(error) };
     }
   })
   // Mock login endpoint for testing (generates JWT)
   .post('/login', async ({ body, jwt, set }) => {
+    const end = httpDuration.startTimer({ method: 'POST', route: '/login' });
     try {
       const { email, password } = body as { email: string; password: string };
 
       if (!email || !password) {
         set.status = 400;
+        httpRequests.inc({ method: 'POST', route: '/login', status: '400' });
+        end();
         return { error: 'Email and password are required' };
       }
 
@@ -123,12 +169,16 @@ const app = new Elysia()
       if (user.length === 0) {
         set.status = 401;
         console.warn(`Login failed: user not found for ${email}`);
+        httpRequests.inc({ method: 'POST', route: '/login', status: '401' });
+        end();
         return { error: 'Invalid credentials' };
       }
 
       // In a real app, verify password hash
       if (password !== 'demo123') {
         set.status = 401;
+        httpRequests.inc({ method: 'POST', route: '/login', status: '401' });
+        end();
         return { error: 'Invalid credentials' };
       }
 
@@ -143,19 +193,23 @@ const app = new Elysia()
       });
 
       console.log(`✅ Login successful for ${email}`);
+      httpRequests.inc({ method: 'POST', route: '/login', status: '200' });
+      end();
 
       return {
         token,
         user: {
           id: user[0].id,
           email: user[0].email,
-            name: user[0].name,
+          name: user[0].name,
           department: user[0].department,
         },
       };
     } catch (error) {
       console.error('Login error:', error);
       set.status = 500;
+      httpRequests.inc({ method: 'POST', route: '/login', status: '500' });
+      end();
       return { error: 'Internal server error', details: String(error) };
     }
   })
