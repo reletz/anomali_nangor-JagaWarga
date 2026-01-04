@@ -98,7 +98,7 @@ async function testReportSubmission() {
       location: 'Jl. Test No. 123',
     };
 
-    const response = await fetch(`${ANONYMIZER_URL}/reports`, {
+    const response = await fetch(`http://localhost:4000/api/reports`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(report),

@@ -60,6 +60,8 @@ services:
   identity-service:
     build: "./src/services/identity/"
     container_name: jagawarga-identity
+    ports:
+      - "3001:3001"
     volumes:
       - ./src/services/shared:/shared
     depends_on:
@@ -86,6 +88,8 @@ services:
   anonymizer-service:
     build: "./src/services/anonymizer/"
     container_name: jagawarga-anonymizer
+    ports:
+      - "3002:3002"
     volumes:
       - ./src/services/shared:/shared
     depends_on:

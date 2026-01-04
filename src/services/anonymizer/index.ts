@@ -5,6 +5,24 @@ import { scrubPII } from './pii-scrubber';
 
 const PORT = process.env.ANONYMIZER_PORT || process.env.PORT || 3002;
 
+// Retry helper for resilience
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  retries = 3,
+  delay = 1000
+): Promise<T> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (i === retries - 1) throw error;
+      console.warn(`Attempt ${i + 1} failed, retrying in ${delay}ms...`, error);
+      await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
+    }
+  }
+  throw new Error('Max retries exceeded');
+}
+
 const app = new Elysia()
   // Health check endpoint
   .get('/health', async () => {
@@ -42,8 +60,7 @@ const app = new Elysia()
       }
 
       const result = scrubPII(text);
-
-      console.log(`🧹 PII scrubbing: ${result.detectedPII.length} items detected`);
+      console.log(`PII scrubbing: detected ${result.detectedPII.length} items`);
 
       return {
         original_length: text.length,
@@ -67,9 +84,35 @@ const app = new Elysia()
 console.log(`🧹 Anonymizer Service running at http://${app.server?.hostname}:${app.server?.port}`);
 
 // Graceful shutdown
+let isShuttingDown = false;
+process.on('SIGTERM', async () => {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  
+  console.log('\n SIGTERM received, shutting down gracefully...');
+  try {
+    app.stop();
+    await sql.end();
+    console.log('Graceful shutdown complete');
+    process.exit(0);
+  } catch (error) {
+    console.error('Error during shutdown:', error);
+    process.exit(1);
+  }
+});
+
 process.on('SIGINT', async () => {
-  console.log('\n🛑 Shutting down gracefully...');
-  app.stop();
-  await sql.end();
-  process.exit(0);
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  
+  console.log('\n SIGINT received, shutting down gracefully...');
+  try {
+    app.stop();
+    await sql.end();
+    console.log('Graceful shutdown complete');
+    process.exit(0);
+  } catch (error) {
+    console.error('Error during shutdown:', error);
+    process.exit(1);
+  }
 });
