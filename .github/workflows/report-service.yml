@@ -347,22 +347,26 @@ jobs:
           curl -f http://localhost:8000/reports/metrics | head -20
           
           echo ""
-          echo "Testing GET /api/reports..."
-          curl -f http://localhost:8000/reports/api/reports
+          echo "Testing GET /api/reports/public (no auth required)..."
+          curl -f http://localhost:8000/reports/api/reports/public
           
           echo ""
-          echo "Testing POST /api/reports..."
+          echo "Testing POST /api/reports (create report, no auth required)..."
           RESPONSE=$(curl -s -X POST http://localhost:8000/reports/api/reports \
             -H "Content-Type: application/json" \
-            -d '{"report": {"category": "kebersihan", "content": "CI test report", "location": "GitHub Actions", "privacy_level": "anonymous", "authority_department": "kebersihan"}}')
+            -d '{"report": {"category": "kebersihan", "content": "CI test report", "location": "GitHub Actions", "privacy_level": "public", "authority_department": "kebersihan"}}')
           echo "$RESPONSE"
           
-          # Extract report ID and test GET by ID
+          # Extract report ID and verify it was created
           REPORT_ID=$(echo "$RESPONSE" | jq -r '.data.id')
-          if [ "$REPORT_ID" != "null" ]; then
+          if [ "$REPORT_ID" != "null" ] && [ -n "$REPORT_ID" ]; then
             echo ""
-            echo "Testing GET /api/reports/$REPORT_ID..."
-            curl -f "http://localhost:8000/reports/api/reports/$REPORT_ID"
+            echo "Report created with ID: $REPORT_ID"
+            echo "Testing GET /api/reports/public to verify report appears..."
+            curl -f http://localhost:8000/reports/api/reports/public | jq ".data[] | select(.id == \"$REPORT_ID\")"
+          else
+            echo "Failed to create report!"
+            exit 1
           fi
           
           echo ""
