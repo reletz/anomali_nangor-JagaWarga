@@ -111,14 +111,22 @@ const app = new Elysia()
         return { error: 'Invalid or expired token' };
       }
 
-      // Check if user exists in database
-      const user = await sql`
-        SELECT id, email, department, name
-        FROM authorities
-        WHERE id = ${payload.sub}
-      `;
+      let userRow: any[] = [];
+      if (payload.role === 'authority') {
+        userRow = await sql`
+          SELECT id, email, name, department
+          FROM authorities
+          WHERE id = ${payload.sub}
+        `;
+      } else {
+        userRow = await sql`
+          SELECT id, nik, name
+          FROM users
+          WHERE id = ${payload.sub}
+        `;
+      }
 
-      if (user.length === 0) {
+      if (userRow.length === 0) {
         set.status = 401;
         httpRequests.inc({ method: 'POST', route: '/validate', status: '401' });
         end();
@@ -130,10 +138,12 @@ const app = new Elysia()
       return {
         valid: true,
         user: {
-          id: user[0].id,
-          email: user[0].email,
-          name: user[0].name,
-          department: user[0].department,
+          role: payload.role || 'citizen',
+          id: userRow[0].id,
+          nik: userRow[0].nik,
+          name: userRow[0].name,
+          email: userRow[0].email,
+          department: userRow[0].department,
         },
       };
     } catch (error) {
@@ -144,38 +154,72 @@ const app = new Elysia()
       return { error: 'Internal server error', details: String(error) };
     }
   })
-  // Mock login endpoint for testing (generates JWT)
+  // Register endpoint: creates a user (nik + name). Email/password ignored; password hardcoded on login.
+  .post('/register', async ({ body, set }) => {
+    const end = httpDuration.startTimer({ method: 'POST', route: '/register' });
+    try {
+      const { name, nik } = body as { name: string; nik: string };
+
+      if (!name || !nik) {
+        set.status = 400;
+        httpRequests.inc({ method: 'POST', route: '/register', status: '400' });
+        end();
+        return { error: 'name and nik are required' };
+      }
+
+      const user = await withRetry(async () => {
+        const inserted = await sql`
+          INSERT INTO users (nik, name)
+          VALUES (${nik}, ${name})
+          ON CONFLICT (nik) DO UPDATE SET name = EXCLUDED.name
+          RETURNING id, nik, name
+        `;
+        return inserted[0];
+      });
+
+      httpRequests.inc({ method: 'POST', route: '/register', status: '200' });
+      end();
+      return { success: true, user };
+    } catch (error) {
+      console.error('Register error:', error);
+      set.status = 500;
+      httpRequests.inc({ method: 'POST', route: '/register', status: '500' });
+      end();
+      return { error: 'Internal server error', details: String(error) };
+    }
+  })
+  // Login via NIK + hardcoded password
   .post('/login', async ({ body, jwt, set }) => {
     const end = httpDuration.startTimer({ method: 'POST', route: '/login' });
     try {
-      const { email, password } = body as { email: string; password: string };
+      const { nik, password } = body as { nik: string; password: string };
 
-      if (!email || !password) {
+      if (!nik || !password) {
         set.status = 400;
         httpRequests.inc({ method: 'POST', route: '/login', status: '400' });
         end();
-        return { error: 'Email and password are required' };
+        return { error: 'NIK and password are required' };
       }
 
       // Check credentials with retry
       const user = await withRetry(async () =>
         await sql`
-          SELECT id, email, department, name
-          FROM authorities
-          WHERE email = ${email}
+          SELECT id, nik, name
+          FROM users
+          WHERE nik = ${nik}
         `
       );
 
       if (user.length === 0) {
         set.status = 401;
-        console.warn(`Login failed: user not found for ${email}`);
+        console.warn(`Login failed: user not found for NIK ${nik}`);
         httpRequests.inc({ method: 'POST', route: '/login', status: '401' });
         end();
         return { error: 'Invalid credentials' };
       }
 
-      // In a real app, verify password hash
-      if (password !== 'demo123') {
+      // Hardcoded password check
+      if (password !== 'password123') {
         set.status = 401;
         httpRequests.inc({ method: 'POST', route: '/login', status: '401' });
         end();
@@ -185,15 +229,80 @@ const app = new Elysia()
       // Generate JWT
       const token = await jwt.sign({
         sub: user[0].id,
-        email: user[0].email,
+        nik: user[0].nik,
         name: user[0].name,
-        department: user[0].department,
+        role: 'citizen',
         iat: Math.floor(Date.now() / 1000),
         exp: Math.floor(Date.now() / 1000) + 3600 * 24, // 24 hours
       });
 
-      console.log(`✅ Login successful for ${email}`);
+      console.log(`✅ Login successful for NIK ${nik}`);
       httpRequests.inc({ method: 'POST', route: '/login', status: '200' });
+      end();
+
+      return {
+        token,
+        user: {
+          id: user[0].id,
+          nik: user[0].nik,
+          name: user[0].name,
+        },
+      };
+    } catch (error) {
+      console.error('Login error:', error);
+      set.status = 500;
+      httpRequests.inc({ method: 'POST', route: '/login', status: '500' });
+      end();
+      return { error: 'Internal server error', details: String(error) };
+    }
+  })
+  // Authority login via email + hardcoded password
+  .post('/login/authority', async ({ body, jwt, set }) => {
+    const end = httpDuration.startTimer({ method: 'POST', route: '/login/authority' });
+    try {
+      const { email, password } = body as { email: string; password: string };
+
+      if (!email || !password) {
+        set.status = 400;
+        httpRequests.inc({ method: 'POST', route: '/login/authority', status: '400' });
+        end();
+        return { error: 'Email and password are required' };
+      }
+
+      const user = await withRetry(async () =>
+        await sql`
+          SELECT id, email, name, department
+          FROM authorities
+          WHERE email = ${email}
+        `
+      );
+
+      if (user.length === 0) {
+        set.status = 401;
+        httpRequests.inc({ method: 'POST', route: '/login/authority', status: '401' });
+        end();
+        return { error: 'Invalid credentials' };
+      }
+
+      if (password !== 'password123') {
+        set.status = 401;
+        httpRequests.inc({ method: 'POST', route: '/login/authority', status: '401' });
+        end();
+        return { error: 'Invalid credentials' };
+      }
+
+      const token = await jwt.sign({
+        sub: user[0].id,
+        email: user[0].email,
+        name: user[0].name,
+        department: user[0].department,
+        role: 'authority',
+        iat: Math.floor(Date.now() / 1000),
+        exp: Math.floor(Date.now() / 1000) + 3600 * 24, // 24 hours
+      });
+
+      console.log(`✅ Authority login successful for ${email}`);
+      httpRequests.inc({ method: 'POST', route: '/login/authority', status: '200' });
       end();
 
       return {
@@ -203,12 +312,13 @@ const app = new Elysia()
           email: user[0].email,
           name: user[0].name,
           department: user[0].department,
+          role: 'authority',
         },
       };
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('Authority login error:', error);
       set.status = 500;
-      httpRequests.inc({ method: 'POST', route: '/login', status: '500' });
+      httpRequests.inc({ method: 'POST', route: '/login/authority', status: '500' });
       end();
       return { error: 'Internal server error', details: String(error) };
     }
