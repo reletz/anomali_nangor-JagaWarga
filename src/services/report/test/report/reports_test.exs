@@ -62,8 +62,8 @@ defmodule Report.ReportsTest do
           status: "submitted"
         })
 
-      # Small delay to ensure different timestamps
-      Process.sleep(10)
+      # Sleep 1 second to ensure different timestamps (utc_datetime has second precision)
+      Process.sleep(1000)
 
       {:ok, report2} =
         Reports.create_report(%{

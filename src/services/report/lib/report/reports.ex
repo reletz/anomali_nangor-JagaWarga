@@ -21,7 +21,7 @@ defmodule Report.Reports do
   """
   def list_reports do
     Report
-    |> order_by(desc: :created_at)
+    |> order_by([r], desc: r.created_at, desc: r.id)
     |> Repo.all()
   end
 
@@ -31,7 +31,7 @@ defmodule Report.Reports do
   def list_by_department(department) do
     from(r in Report,
       where: r.authority_department == ^department,
-      order_by: [desc: r.created_at]
+      order_by: [desc: r.created_at, desc: r.id]
     )
     |> Repo.all()
   end
