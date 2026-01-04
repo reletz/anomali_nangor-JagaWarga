@@ -2,7 +2,7 @@ import postgres from 'postgres';
 
 // Database connection configuration
 const sql = postgres({
-  host: process.env.DB_HOST || 'localhost',
+  host: process.env.DB_HOST || 'db',
   port: parseInt(process.env.DB_PORT || '26257'),
   database: process.env.DB_NAME || 'jagawargadb',
   username: process.env.DB_USER || 'root',

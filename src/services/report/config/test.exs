@@ -6,12 +6,14 @@ import Config
 # to provide built-in test partitioning in CI environment.
 # Run `mix help test` for more information.
 config :report, Report.Repo,
-  username: "postgres",
-  password: "postgres",
-  hostname: "localhost",
-  database: "report_test#{System.get_env("MIX_TEST_PARTITION")}",
+  username: System.get_env("DB_USER", "root"),
+  password: System.get_env("DB_PASSWORD", ""),
+  hostname: System.get_env("DB_HOST", "localhost"),
+  port: String.to_integer(System.get_env("DB_PORT", "26257")),
+  database: System.get_env("DB_NAME", "report_test") <> "#{System.get_env("MIX_TEST_PARTITION", "")}",
   pool: Ecto.Adapters.SQL.Sandbox,
-  pool_size: System.schedulers_online() * 2
+  pool_size: System.schedulers_online() * 2,
+  migration_lock: nil  # CockroachDB compatibility
 
 # We don't run a server during test. If one is required,
 # you can enable the server option below.
@@ -35,3 +37,15 @@ config :phoenix, :plug_init_mode, :runtime
 # Sort query params output of verified routes for robust url comparisons
 config :phoenix,
   sort_verified_routes_query_params: true
+
+# Disable Escalation Worker during tests (to avoid side effects)
+config :report, Report.EscalationWorker,
+  enabled: false
+
+# Disable NATS during tests
+config :report, Report.NatsPublisher,
+  enabled: false
+
+# Disable PromEx during tests
+config :report, Report.PromEx,
+  disabled: true

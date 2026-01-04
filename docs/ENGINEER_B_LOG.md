@@ -4,6 +4,100 @@ This document tracks the step-by-step implementation of the Backend Services (Re
 
 ## 📅 Timeline & Progress
 
+### ✅ Step 6: CI Pipeline & Testing (Completed)
+**Goal:** Setup GitHub Actions CI pipeline with compile-time and runtime tests.
+
+#### Why CI for Elixir?
+- Elixir can compile successfully but fail at runtime (e.g., missing NATS, wrong DB config)
+- Pattern matching failures are runtime errors
+- GenServer crashes might not be caught until production
+
+#### CI Jobs Created:
+
+1. ✅ **Compile Check**
+   - `mix compile --warnings-as-errors`
+   - `mix format --check-formatted`
+   - Catches syntax errors and warnings
+
+2. ✅ **Static Analysis (Credo)**
+   - `mix credo --strict`
+   - Catches code smells and style issues
+
+3. ✅ **Unit Tests (without DB)**
+   - `mix test --exclude integration --exclude db`
+   - Fast feedback, no external dependencies
+
+4. ✅ **Integration Tests (with CockroachDB + NATS)**
+   - Uses GitHub Actions services
+   - Runs migrations and full test suite
+   - Tests actual DB operations
+
+5. ✅ **Docker Runtime Test**
+   - Builds Docker image
+   - Starts full stack with docker-compose
+   - Tests `/health`, `/metrics`, `/api/reports` endpoints
+   - Verifies POST creates report and GET retrieves it
+
+#### Test Files Created:
+
+| File | Description |
+|------|-------------|
+| `test/report/reports_test.exs` | Unit tests for Reports context (CRUD, escalation) |
+| `test/report_web/controllers/report_controller_test.exs` | Integration tests for API endpoints |
+| `test/report_web/controllers/health_controller_test.exs` | Health check endpoint tests |
+
+#### Test Coverage:
+
+**Reports Context Tests:**
+- `create_report/1` - valid attrs, with reporter_id, missing fields
+- `list_reports/0` - ordering, empty list
+- `list_by_department/1` - filtering, non-existent department
+- `get_report!/1` - success, not found error
+- `list_stale_reports/1` - cutoff filtering, status filtering
+- `escalate_report/1` - status update, timestamp setting
+
+**Controller Tests:**
+- `GET /api/reports` - list all, filter by department
+- `POST /api/reports` - valid data, invalid data, default status
+- `GET /api/reports/:id` - success, 404
+
+**Health Tests:**
+- `GET /health` - status, database connectivity
+
+#### Configuration:
+
+**test.exs Updates:**
+```elixir
+# CockroachDB support
+config :report, Report.Repo,
+  migration_lock: nil
+
+# Disable background workers during tests
+config :report, Report.EscalationWorker, enabled: false
+config :report, Report.NatsPublisher, enabled: false
+config :report, Report.PromEx, disabled: true
+```
+
+#### Running Tests Locally:
+
+```bash
+# Start test DB
+docker compose up -d db
+
+# Create test database
+docker exec jagawarga-db ./cockroach sql --insecure -e "CREATE DATABASE IF NOT EXISTS report_test"
+
+# Run tests
+cd src/services/report
+mix deps.get
+mix test
+
+# Run with coverage
+mix test --cover
+```
+
+---
+
 ### ✅ Step 1: Foundation & Dependencies (Completed)
 **Goal:** Setup Phoenix project dependencies and configuration.
 
