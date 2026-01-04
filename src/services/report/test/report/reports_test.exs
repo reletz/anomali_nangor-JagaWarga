@@ -81,7 +81,7 @@ defmodule Report.ReportsTest do
       report = public_report_fixture(authority_department: "kebersihan")
 
       assert {:ok, fetched_report} =
-        Reports.get_report_with_access_check(report.id, authority_department: "kebersihan")
+               Reports.get_report_with_access_check(report.id, authority_department: "kebersihan")
 
       assert fetched_report.id == report.id
     end
@@ -90,7 +90,7 @@ defmodule Report.ReportsTest do
       report = public_report_fixture(authority_department: "kesehatan")
 
       assert {:error, :forbidden} =
-        Reports.get_report_with_access_check(report.id, authority_department: "kebersihan")
+               Reports.get_report_with_access_check(report.id, authority_department: "kebersihan")
     end
 
     test "create_report/1 with valid data creates a report" do

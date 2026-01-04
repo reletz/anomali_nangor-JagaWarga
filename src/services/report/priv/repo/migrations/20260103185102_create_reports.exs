@@ -5,7 +5,8 @@ defmodule Report.Repo.Migrations.CreateReports do
   @disable_ddl_transaction true
 
   def change do
-    create table(:reports, primary_key: false) do
+    # Skip if table already exists (from init.sql)
+    create_if_not_exists table(:reports, primary_key: false) do
       add :id, :binary_id, primary_key: true
       add :reporter_id, :binary_id
       add :privacy_level, :string, null: false
@@ -20,16 +21,16 @@ defmodule Report.Repo.Migrations.CreateReports do
       timestamps(inserted_at: :created_at, type: :utc_datetime)
     end
 
-    create index(:reports, [:authority_department, :status])
+    create_if_not_exists index(:reports, [:authority_department, :status])
 
-    create index(:reports, [:created_at, :status],
-             where: "status = 'submitted'",
-             name: :idx_reports_stale
-           )
+    create_if_not_exists index(:reports, [:created_at, :status],
+                           where: "status = 'submitted'",
+                           name: :idx_reports_stale
+                         )
 
-    create index(:reports, [:privacy_level],
-             where: "privacy_level = 'public'",
-             name: :idx_reports_privacy
-           )
+    create_if_not_exists index(:reports, [:privacy_level],
+                           where: "privacy_level = 'public'",
+                           name: :idx_reports_privacy
+                         )
   end
 end

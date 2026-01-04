@@ -46,7 +46,7 @@ defmodule ReportWeb.Router do
     get "/my-reports", ReportController, :my_reports
     get "/my-reports/:id", ReportController, :my_report
   end
-  
+
   scope "/api", ReportWeb do
     pipe_through :authenticated
 

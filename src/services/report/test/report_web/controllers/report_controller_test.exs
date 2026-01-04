@@ -51,14 +51,20 @@ defmodule ReportWeb.ReportControllerTest do
       assert Enum.any?(reports, fn r -> r["id"] == public_report.id end)
     end
 
-    test "does not list private reports in public endpoint", %{conn: conn, private_report: private_report} do
+    test "does not list private reports in public endpoint", %{
+      conn: conn,
+      private_report: private_report
+    } do
       conn = get(conn, ~p"/api/reports/public")
       assert %{"data" => reports} = json_response(conn, 200)
 
       refute Enum.any?(reports, fn r -> r["id"] == private_report.id end)
     end
 
-    test "does not list anonymous reports in public endpoint", %{conn: conn, anonymous_report: anonymous_report} do
+    test "does not list anonymous reports in public endpoint", %{
+      conn: conn,
+      anonymous_report: anonymous_report
+    } do
       conn = get(conn, ~p"/api/reports/public")
       assert %{"data" => reports} = json_response(conn, 200)
 
@@ -174,13 +180,14 @@ defmodule ReportWeb.ReportControllerTest do
     end
 
     test "denies access to report from other department", %{conn: conn} do
-      {:ok, other_report} = Reports.create_report(%{
-        category: "kesehatan",
-        content: "Health report",
-        privacy_level: "public",
-        authority_department: "kesehatan",
-        status: "submitted"
-      })
+      {:ok, other_report} =
+        Reports.create_report(%{
+          category: "kesehatan",
+          content: "Health report",
+          privacy_level: "public",
+          authority_department: "kesehatan",
+          status: "submitted"
+        })
 
       conn = get(conn, ~p"/api/reports/#{other_report.id}")
       assert %{"error" => "Access denied"} = json_response(conn, 403)

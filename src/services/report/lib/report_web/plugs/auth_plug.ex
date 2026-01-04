@@ -34,7 +34,7 @@ defmodule ReportWeb.Plugs.AuthPlug do
     url = "#{@identity_service_url}/validate"
     headers = [{"Authorization", "Bearer #{token}"}, {"Content-Type", "application/json"}]
 
-    case :httpc.request(:get, {String.to_charlist(url), headers}, [], [body_format: :binary]) do
+    case :httpc.request(:get, {String.to_charlist(url), headers}, [], body_format: :binary) do
       {:ok, {{_, 200, _}, _headers, body}} ->
         case Jason.decode(body) do
           {:ok, %{"user" => user}} -> {:ok, user}
