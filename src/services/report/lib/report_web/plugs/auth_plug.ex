@@ -17,7 +17,7 @@ defmodule ReportWeb.Plugs.AuthPlug do
 
         conn
         |> put_status(:unauthorized)
-        |> json(%{error: reason})
+        |> json(%{error: "Unauthorized", message: reason})
         |> halt()
     end
   end
@@ -25,53 +25,34 @@ defmodule ReportWeb.Plugs.AuthPlug do
   defp get_token_from_header(conn) do
     case get_req_header(conn, "authorization") do
       ["Bearer " <> token] -> {:ok, token}
+      [token] -> {:ok, token}
       _ -> {:error, "Missing or invalid Authorization header"}
     end
   end
 
   defp validate_token(token) do
-    url = ~c"#{@identity_service_url}/validate"
-    headers = [{~c"content-type", ~c"application/json"}]
-    body = Jason.encode!(%{token: token})
+    url = "#{@identity_service_url}/validate"
+    headers = [{"Authorization", "Bearer #{token}"}, {"Content-Type", "application/json"}]
 
-    :inets.start()
-
-    case :httpc.request(:post, {url, headers, ~c"application/json", body}, [], []) do
-      {:ok, {{_version, 200, _reason}, _headers, response_body}} ->
-        response_string = List.to_string(response_body)
-
-        case Jason.decode(response_string) do
-          {:ok, %{"valid" => true, "user" => user_data}} ->
-            department = Map.get(user_data, "department")
-            email = Map.get(user_data, "email")
-            user_id = Map.get(user_data, "id")
-
-            {:ok,
-              %{
-                "department" => department,
-                "email" => email,
-                "id" => user_id
-              }}
-
-          {:ok, %{"valid" => false}} ->
-            {:error, "Invalid token"}
-
-          {:ok, unexpected} ->
-            Logger.error("Unexpected token response format: #{inspect(unexpected)}")
-            {:error, "Invalid token response format"}
-
-          {:error, decode_error} ->
-            Logger.error("Failed to decode token response: #{inspect(decode_error)}")
-            {:error, "Invalid token response format"}
+    case :httpc.request(:get, {String.to_charlist(url), headers}, [], [body_format: :binary]) do
+      {:ok, {{_, 200, _}, _headers, body}} ->
+        case Jason.decode(body) do
+          {:ok, %{"user" => user}} -> {:ok, user}
+          {:ok, response} -> {:error, "Invalid response format: #{inspect(response)}"}
+          {:error, _} -> {:error, "Failed to decode response"}
         end
 
-      {:ok, {{_version, status_code, _reason}, _headers, _body}} ->
-        Logger.error("Identity service returned status #{status_code}")
-        {:error, "Token validation failed"}
+      {:ok, {{_, status, _}, _headers, body}} ->
+        Logger.warning("Identity service returned #{status}: #{body}")
+        {:error, "Invalid or expired token"}
 
       {:error, reason} ->
-        Logger.error("Failed to connect to identity service: #{inspect(reason)}")
-        {:error, "Token validation service unavailable"}
+        Logger.error("Failed to reach identity service: #{inspect(reason)}")
+        {:error, "Authentication service unavailable"}
     end
+  rescue
+    error ->
+      Logger.error("Exception during token validation: #{inspect(error)}")
+      {:error, "Internal authentication error"}
   end
 end

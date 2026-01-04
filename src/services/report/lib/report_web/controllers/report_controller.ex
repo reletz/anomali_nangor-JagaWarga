@@ -36,6 +36,46 @@ defmodule ReportWeb.ReportController do
   end
 
   @doc """
+  Lists reports submitted by the authenticated citizen.
+  Returns public and private reports (not anonymous).
+  """
+  def my_reports(conn, _params) do
+    # Get reporter_id from authenticated user
+    current_user = conn.assigns[:current_user]
+    reporter_id = current_user["id"]
+
+    reports = Reports.list_reports_by_reporter(reporter_id)
+    render(conn, :index, reports: reports)
+  end
+
+  @doc """
+  Shows a single report if it belongs to the authenticated citizen.
+  """
+  def my_report(conn, %{"id" => id}) do
+    # Get reporter_id from authenticated user
+    current_user = conn.assigns[:current_user]
+    reporter_id = current_user["id"]
+
+    case Reports.get_report_by_reporter(id, reporter_id) do
+      {:ok, report} ->
+        render(conn, :show, report: report)
+
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "Report not found"})
+
+      {:error, :forbidden} ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{
+          error: "Access denied",
+          message: "This report does not belong to you or is anonymous"
+        })
+    end
+  end
+
+  @doc """
   Lists reports for authenticated authority.
   Returns ALL reports (public, private, anonymous) assigned to their department.
   """

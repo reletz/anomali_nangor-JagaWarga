@@ -10,6 +10,12 @@ defmodule ReportWeb.Router do
     plug ReportWeb.Plugs.AuthPlug
   end
 
+  pipeline :citizen_auth do
+    plug :accepts, ["json"]
+    plug ReportWeb.Plugs.AuthPlug
+    plug ReportWeb.Plugs.CitizenAuthPlug
+  end
+
   # Health check endpoint (no pipeline needed)
   scope "/", ReportWeb do
     get "/health", HealthController, :index
@@ -33,6 +39,14 @@ defmodule ReportWeb.Router do
     get "/reports/public", ReportController, :public
   end
 
+  scope "/api", ReportWeb do
+    pipe_through :citizen_auth
+
+    # Citizens can view their own reports
+    get "/my-reports", ReportController, :my_reports
+    get "/my-reports/:id", ReportController, :my_report
+  end
+  
   scope "/api", ReportWeb do
     pipe_through :authenticated
 
