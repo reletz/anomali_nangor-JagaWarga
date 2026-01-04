@@ -253,7 +253,7 @@ jobs:
           
           # Wait for health check
           for i in {1..30}; do
-            if curl -s http://localhost:4000/health | grep -q "ok"; then
+            if curl -s http://localhost:8000/reports/health | grep -q "ok"; then
               echo "Health check passed!"
               exit 0
             fi
@@ -267,19 +267,19 @@ jobs:
       - name: Test API endpoints
         run: |
           echo "Testing GET /health..."
-          curl -f http://localhost:4000/health
+          curl -f http://localhost:8000/reports/health
           
           echo ""
           echo "Testing GET /metrics..."
-          curl -f http://localhost:4000/metrics | head -20
+          curl -f http://localhost:8000/reports/metrics | head -20
           
           echo ""
           echo "Testing GET /api/reports..."
-          curl -f http://localhost:4000/api/reports
+          curl -f http://localhost:8000/reports/api/reports
           
           echo ""
           echo "Testing POST /api/reports..."
-          RESPONSE=$(curl -s -X POST http://localhost:4000/api/reports \
+          RESPONSE=$(curl -s -X POST http://localhost:8000/reports/api/reports \
             -H "Content-Type: application/json" \
             -d '{"report": {"category": "kebersihan", "content": "CI test report", "location": "GitHub Actions", "privacy_level": "anonymous", "authority_department": "kebersihan"}}')
           echo "$RESPONSE"
@@ -289,7 +289,7 @@ jobs:
           if [ "$REPORT_ID" != "null" ]; then
             echo ""
             echo "Testing GET /api/reports/$REPORT_ID..."
-            curl -f "http://localhost:4000/api/reports/$REPORT_ID"
+            curl -f "http://localhost:8000/reports/api/reports/$REPORT_ID"
           fi
           
           echo ""
