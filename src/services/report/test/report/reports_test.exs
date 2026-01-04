@@ -2,12 +2,12 @@ defmodule Report.ReportsTest do
   use Report.DataCase
 
   alias Report.Reports
+  alias Report.Report, as: ReportSchema
+
+  # Import fixtures at module level (before alias overrides Report)
+  import Report.ReportsFixtures
 
   describe "reports" do
-    alias Report.Report
-
-    import Report.ReportsFixtures
-
     @valid_attrs %{
       category: "sampah",
       content: "some content",
@@ -94,21 +94,21 @@ defmodule Report.ReportsTest do
     end
 
     test "create_report/1 with valid data creates a report" do
-      assert {:ok, %Report{} = report} = Reports.create_report(@valid_attrs)
+      assert {:ok, %ReportSchema{} = report} = Reports.create_report(@valid_attrs)
       assert report.category == "sampah"
       assert report.content == "some content"
       assert report.privacy_level == "public"
     end
 
     test "create_report/1 generates access_token for private reports" do
-      assert {:ok, %Report{} = report} = Reports.create_report(@private_attrs)
+      assert {:ok, %ReportSchema{} = report} = Reports.create_report(@private_attrs)
       assert report.privacy_level == "private"
       assert report.access_token != nil
       assert String.length(report.access_token) > 20
     end
 
     test "create_report/1 does not generate access_token for public reports" do
-      assert {:ok, %Report{} = report} = Reports.create_report(@valid_attrs)
+      assert {:ok, %ReportSchema{} = report} = Reports.create_report(@valid_attrs)
       assert report.privacy_level == "public"
       assert report.access_token == nil
     end
