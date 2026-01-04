@@ -239,7 +239,7 @@ jobs:
 
       - name: Start services with docker-compose
         run: |
-          docker compose -f compose.yml up -d db mb report-service
+          docker compose -f compose.yml up -d db mb gateway report-service
         env:
           COMPOSE_PROJECT_NAME: jagawarga-test
 
@@ -253,7 +253,7 @@ jobs:
           
           # Wait for health check
           for i in {1..30}; do
-            if curl http://localhost:8000/reports/health | grep -q "ok"; then
+            if curl -s http://localhost:8000/reports/health | grep -q "ok"; then
               echo "Health check passed!"
               exit 0
             fi
