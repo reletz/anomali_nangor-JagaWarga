@@ -230,7 +230,7 @@ jobs:
       - name: Setup certificates
         run: |
           mkdir -p certs
-          echo "${{ secrets.COCKROACH_AES_KEY }}" > certs/aes-256.key
+          echo "${{ secrets.COCKROACH_AES_KEY }}" | base64 -d > certs/aes-256.key
           chmod 600 certs/aes-256.key
 
       - name: Build Docker image
