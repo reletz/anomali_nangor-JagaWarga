@@ -20,15 +20,6 @@ defmodule Report.ReportsTest do
       status: "submitted"
     }
 
-    @private_attrs %{
-      category: "keamanan",
-      content: "private content",
-      privacy_level: "private",
-      authority_department: "keamanan",
-      status: "submitted",
-      reporter_id: "reporter-123"
-    }
-
     @invalid_attrs %{
       category: nil,
       content: nil,
@@ -37,21 +28,61 @@ defmodule Report.ReportsTest do
       status: nil
     }
 
-    test "get_report_with_access_check/2 allows authority to view any report in their dept" do
-      report = public_report_fixture(authority_department: "kebersihan")
+    # =========================================================================
+    # Public Reports - Accessible to general public
+    # =========================================================================
 
+    test "get_report_with_access_check/2 allows anyone to view public reports" do
+      report = public_report_fixture(authority_department: "kesehatan")
+
+      # Public reports can be viewed by any department
       assert {:ok, fetched_report} =
                Reports.get_report_with_access_check(report.id, authority_department: "kebersihan")
 
       assert fetched_report.id == report.id
     end
 
-    test "get_report_with_access_check/2 denies authority from viewing other dept reports" do
-      report = public_report_fixture(authority_department: "kesehatan")
+    # =========================================================================
+    # Private/Anonymous Reports - Only accessible by assigned authority
+    # =========================================================================
 
+    test "get_report_with_access_check/2 allows assigned authority to view private reports" do
+      report = private_report_fixture(authority_department: "keamanan")
+
+      assert {:ok, fetched_report} =
+               Reports.get_report_with_access_check(report.id, authority_department: "keamanan")
+
+      assert fetched_report.id == report.id
+    end
+
+    test "get_report_with_access_check/2 denies other dept from viewing private reports" do
+      report = private_report_fixture(authority_department: "keamanan")
+
+      # Department of Cleanliness cannot view crime (keamanan) reports
       assert {:error, :forbidden} =
                Reports.get_report_with_access_check(report.id, authority_department: "kebersihan")
     end
+
+    test "get_report_with_access_check/2 allows assigned authority to view anonymous reports" do
+      report = anonymous_report_fixture(authority_department: "kesehatan")
+
+      assert {:ok, fetched_report} =
+               Reports.get_report_with_access_check(report.id, authority_department: "kesehatan")
+
+      assert fetched_report.id == report.id
+    end
+
+    test "get_report_with_access_check/2 denies other dept from viewing anonymous reports" do
+      report = anonymous_report_fixture(authority_department: "kesehatan")
+
+      # Other departments cannot view anonymous reports
+      assert {:error, :forbidden} =
+               Reports.get_report_with_access_check(report.id, authority_department: "kebersihan")
+    end
+
+    # =========================================================================
+    # CRUD Operations
+    # =========================================================================
 
     test "create_report/1 with valid data creates a report" do
       assert {:ok, %ReportSchema{} = report} = Reports.create_report(@valid_attrs)

@@ -21,7 +21,7 @@ defmodule ReportWeb.ReportControllerTest do
     privacy_level: "private",
     authority_department: "keamanan",
     status: "submitted",
-    reporter_id: "test-reporter-123"
+    reporter_id: "00000000-0000-0000-0000-000000000001"
   }
 
   @anonymous_attrs %{
