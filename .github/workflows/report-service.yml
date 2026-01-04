@@ -253,7 +253,7 @@ jobs:
           
           # Wait for health check
           for i in {1..30}; do
-            if curl -s http://localhost:8000/reports/health | grep -q "ok"; then
+            if curl http://localhost:8000/reports/health | grep -q "ok"; then
               echo "Health check passed!"
               exit 0
             fi
