@@ -37,6 +37,11 @@ defmodule Report.Reports do
   end
 
   @doc """
+  Gets a single report or returns nil if not found
+  """
+  def get_report!(id), do: Repo.get(Report, id)
+
+  @doc """
   Gets a single report.
 
   Raises `Ecto.NoResultsError` if the Report does not exist.
