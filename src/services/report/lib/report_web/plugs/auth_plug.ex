@@ -31,7 +31,7 @@ defmodule ReportWeb.Plugs.AuthPlug do
 
   defp validate_token(token) do
     url = ~c"#{@identity_service_url}/validate"
-    headers = [{'content-type', ~c"application/json"}]
+    headers = [{~c"content-type", ~c"application/json"}]
     body = Jason.encode!(%{token: token})
 
     :inets.start()
@@ -46,11 +46,12 @@ defmodule ReportWeb.Plugs.AuthPlug do
             email = Map.get(user_data, "email")
             user_id = Map.get(user_data, "id")
 
-            {:ok, %{
-              "department" => department,
-              "email" => email,
-              "id" => user_id
-            }}
+            {:ok,
+              %{
+                "department" => department,
+                "email" => email,
+                "id" => user_id
+              }}
 
           {:ok, %{"valid" => false}} ->
             {:error, "Invalid token"}

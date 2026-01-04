@@ -47,7 +47,7 @@ defmodule ReportWeb.ConnCase do
     |> Plug.Conn.assign(:current_user, user)
   end
 
-  generate_test_token(department \\ "kebersihan") do
+  def generate_test_token(department \\ "kebersihan") do
     "test-token-#{department}-#{:erlang.unique_integer()}"
   end
 end

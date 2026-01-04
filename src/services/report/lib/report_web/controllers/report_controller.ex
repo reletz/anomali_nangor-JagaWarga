@@ -3,8 +3,9 @@ defmodule ReportWeb.ReportController do
 
   alias Report.Reports
   alias Report.Report, as: ReportSchema
+
   require Logger
-  
+
   action_fallback ReportWeb.FallbackController
 
   @doc """
@@ -13,22 +14,23 @@ defmodule ReportWeb.ReportController do
   Can be filtered by department or status.
   """
   def public(conn, params) do
-    reports = case params do
-      %{"department" => dept, "status" => status}
+    reports =
+      case params do
+        %{"department" => dept, "status" => status}
         when is_binary(dept) and dept != "" and is_binary(status) and status != "" ->
-        # Filter by both department and status
-        Reports.list_public_reports()
-        |> Enum.filter(&(&1.authority_department == dept and &1.status == status))
+          # Filter by both department and status
+          Reports.list_public_reports()
+          |> Enum.filter(&(&1.authority_department == dept and &1.status == status))
 
-      %{"department" => dept} when is_binary(dept) and dept != "" ->
-        Reports.list_public_reports_by_department(dept)
+        %{"department" => dept} when is_binary(dept) and dept != "" ->
+          Reports.list_public_reports_by_department(dept)
 
-      %{"status" => status} when is_binary(status) and status != "" ->
-        Reports.list_public_reports_by_status(status)
+        %{"status" => status} when is_binary(status) and status != "" ->
+          Reports.list_public_reports_by_status(status)
 
-      _ ->
-        Reports.list_public_reports()
-    end
+        _ ->
+          Reports.list_public_reports()
+      end
 
     render(conn, :index, reports: reports)
   end
@@ -55,7 +57,9 @@ defmodule ReportWeb.ReportController do
 
       # Trying to access another department - DENY
       true ->
-        Logger.warning("Access denied: User from #{user_department} tried to access #{requested_dept}")
+        Logger.warning(
+          "Access denied: User from #{user_department} tried to access #{requested_dept}"
+        )
 
         conn
         |> put_status(:forbidden)
