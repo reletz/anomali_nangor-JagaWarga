@@ -39,7 +39,7 @@ defmodule Report.Reports do
   @doc """
   Gets a single report or returns nil if not found
   """
-  def get_report!(id), do: Repo.get(Report, id)
+  def get_report(id), do: Repo.get(Report, id)
 
   @doc """
   Gets a single report.
