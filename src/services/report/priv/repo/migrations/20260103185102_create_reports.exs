@@ -1,6 +1,9 @@
 defmodule Report.Repo.Migrations.CreateReports do
   use Ecto.Migration
 
+  # Disable DDL transaction for CockroachDB compatibility
+  @disable_ddl_transaction true
+
   def change do
     create table(:reports, primary_key: false) do
       add :id, :binary_id, primary_key: true

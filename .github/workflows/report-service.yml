@@ -2,12 +2,12 @@ name: Report Service CI
 
 on:
   push:
-    branches: [main, feat/report]
+    branches: [main, feat/report, dev]
     paths:
       - 'src/services/report/**'
       - '.github/workflows/report-service.yml'
   pull_request:
-    branches: [main]
+    branches: [main, dev]
     paths:
       - 'src/services/report/**'
 
@@ -150,6 +150,7 @@ jobs:
           --health-retries 5
         env:
           COCKROACH_DATABASE: report_test
+          COCKROACH_ARGS: start-single-node --insecure
 
       nats:
         image: nats:alpine
@@ -213,6 +214,7 @@ jobs:
           NATS_URL: nats://localhost:4222
           START_REPO: true
 
+
   # ==========================================================================
   # Job 5: Runtime Smoke Test (Docker)
   # ==========================================================================
@@ -224,10 +226,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup CockroachDB encryption key
+      # Setup certificates from secrets
+      - name: Setup certificates
         run: |
           mkdir -p certs
           echo "${{ secrets.COCKROACH_AES_KEY }}" | base64 -d > certs/aes-256.key
+          chmod 600 certs/aes-256.key
 
       - name: Build Docker image
         run: |
@@ -295,3 +299,4 @@ jobs:
         if: always()
         run: |
           docker compose down -v
+          rm -rf certs/
