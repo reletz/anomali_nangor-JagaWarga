@@ -116,4 +116,5 @@ defmodule Report.ReportsTest do
     test "create_report/1 with invalid data returns error changeset" do
       assert {:error, %Ecto.Changeset{}} = Reports.create_report(@invalid_attrs)
     end
+  end
 end
