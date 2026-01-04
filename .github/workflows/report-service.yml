@@ -266,8 +266,15 @@ jobs:
 
       - name: Test API endpoints
         run: |
+          echo "Waiting for service to stabilize..."
+          sleep 5
+          
           echo "Testing GET /health..."
-          curl -f http://localhost:8000/reports/health
+          curl -v -f http://localhost:8000/reports/health || {
+            echo "Health endpoint failed, checking logs..."
+            docker compose logs report-service
+            exit 1
+          }
           
           echo ""
           echo "Testing GET /metrics..."
