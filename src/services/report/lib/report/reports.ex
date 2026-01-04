@@ -89,7 +89,45 @@ defmodule Report.Reports do
     |> order_by([r], desc: r.created_at)
     |> Repo.all()
   end
-  
+
+  @doc """
+  Gets a report by ID if the requester has permission to view it.
+
+  Returns:
+  - `{:ok, report}` if authorized
+  - `{:error, :not_found}` if report doesn't exist
+  - `{:error, :forbidden}` if unauthorized
+  """
+  def get_report_with_access_check(report_id, opts \\ []) do
+    case Repo.get(Report, report_id) do
+      nil ->
+        {:error, :not_found}
+
+      report ->
+        cond do
+          report.privacy_level == "public" ->
+            {:ok, report}
+
+          Keyword.has_key?(opts, :authority_department) ->
+            if report.authority_department == opts[:authority_department] do
+              {:ok, report}
+            else
+              {:error, :forbidden}
+            end
+
+          Keyword.has_key?(opts, :reporter_id) ->
+            if report.privacy_level == "private" && report.reporter_id == opts[:reporter_id] do
+              {:ok, report}
+            else
+              {:error, :forbidden}
+            end
+
+          true ->
+            {:error, :forbidden}
+        end
+    end
+  end
+
   @doc """
   Returns the list of all reports (admin use only).
   """
