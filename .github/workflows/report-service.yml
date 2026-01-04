@@ -121,8 +121,7 @@ jobs:
         run: mix deps.get
 
       - name: Run unit tests (exclude DB tests)
-        # Use 'mix run' to bypass 'test' alias which runs ecto.create
-        run: mix run -e "Mix.Task.run(:test, [\"--exclude\", \"integration\", \"--exclude\", \"db\"])"
+        run: mix test --exclude integration --exclude db
         env:
           # Disable components that need external services
           NATS_ENABLED: false
