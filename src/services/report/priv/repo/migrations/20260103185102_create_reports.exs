@@ -1,0 +1,36 @@
+defmodule Report.Repo.Migrations.CreateReports do
+  use Ecto.Migration
+
+  # Disable DDL transaction for CockroachDB compatibility
+  @disable_ddl_transaction true
+
+  def change do
+    # Skip if table already exists (from init.sql)
+    create_if_not_exists table(:reports, primary_key: false) do
+      add :id, :binary_id, primary_key: true
+      add :reporter_id, :binary_id
+      add :privacy_level, :string, null: false
+      add :category, :string, null: false
+      add :content, :text, null: false
+      add :location, :string
+      add :status, :string, null: false, default: "submitted"
+      add :authority_department, :string
+      add :escalated_at, :utc_datetime
+      add :resolved_at, :utc_datetime
+
+      timestamps(inserted_at: :created_at, type: :utc_datetime)
+    end
+
+    create_if_not_exists index(:reports, [:authority_department, :status])
+
+    create_if_not_exists index(:reports, [:created_at, :status],
+                           where: "status = 'submitted'",
+                           name: :idx_reports_stale
+                         )
+
+    create_if_not_exists index(:reports, [:privacy_level],
+                           where: "privacy_level = 'public'",
+                           name: :idx_reports_privacy
+                         )
+  end
+end

@@ -1,0 +1,79 @@
+http:
+  routers:
+    anonymizer:
+      rule: "PathPrefix(`/anonymizer`)"
+      service: anonymizer-service
+      entryPoints:
+        - web
+      priority: 10
+      middlewares:
+        - strip-anonymizer
+        - cors-headers
+    
+    identity:
+      rule: "PathPrefix(`/identity`)"
+      service: identity-service
+      entryPoints:
+        - web
+      priority: 10
+      middlewares:
+        - strip-identity
+        - cors-headers
+    
+    report:
+      rule: "PathPrefix(`/reports`)"
+      service: report-service
+      entryPoints:
+        - web
+      priority: 10
+      middlewares:
+        - strip-reports
+        - cors-headers
+  
+  middlewares:
+    strip-anonymizer:
+      stripPrefix:
+        prefixes:
+          - "/anonymizer"
+    strip-identity:
+      stripPrefix:
+        prefixes:
+          - "/identity"
+    strip-reports:
+      stripPrefix:
+        prefixes:
+          - "/reports"
+
+    cors-headers:
+      headers:
+        accessControlAllowMethods:
+          - GET
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+          - OPTIONS
+        accessControlAllowHeaders:
+          - "*"
+        accessControlAllowOriginList:
+          - "http://localhost:5000"
+          - "http://localhost:8000"
+        accessControlAllowCredentials: true
+        accessControlMaxAge: 86400
+        addVaryHeader: true
+
+  services:
+    anonymizer-service:
+      loadBalancer:
+        servers:
+          - url: "http://anonymizer-service:3002"
+    
+    identity-service:
+      loadBalancer:
+        servers:
+          - url: "http://identity-service:3001"
+    
+    report-service:
+      loadBalancer:
+        servers:
+          - url: "http://report-service:4000"

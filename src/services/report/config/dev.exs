@@ -2,13 +2,16 @@ import Config
 
 # Configure your database
 config :report, Report.Repo,
-  username: "postgres",
-  password: "postgres",
-  hostname: "localhost",
-  database: "report_dev",
+  username: "root",
+  password: "",
+  hostname: System.get_env("DB_HOST", "localhost"),
+  port: String.to_integer(System.get_env("DB_PORT", "26257")),
+  database: System.get_env("DB_NAME", "jagawargadb"),
   stacktrace: true,
   show_sensitive_data_on_connection_error: true,
-  pool_size: 10
+  pool_size: 10,
+  ssl: false,
+  migration_lock: nil
 
 # For development, we disable any cache and enable
 # debugging and code reloading.
@@ -65,3 +68,31 @@ config :phoenix, :plug_init_mode, :runtime
 
 # Disable swoosh api client as it is only required for production adapters.
 config :swoosh, :api_client, false
+
+# Escalation Worker Configuration
+# - check_interval_ms: How often to check for stale reports (default: 10s)
+# - stale_threshold_sec: How old a report must be to escalate (default: 30s)
+# - enabled: Whether the worker is active (default: true)
+config :report, Report.EscalationWorker,
+  check_interval_ms: 10_000,
+  stale_threshold_sec: 30,
+  enabled: true
+
+# NATS Publisher Configuration
+# - url: NATS server URL
+# - enabled: Whether to publish events to NATS
+# - connection_name: Registered name for the NATS connection process
+config :report, Report.NatsPublisher,
+  url: System.get_env("NATS_URL", "nats://mb:4222"),
+  enabled: true,
+  connection_name: :report_nats
+
+# PromEx Configuration
+# - disabled: Set to true to disable PromEx (useful for testing)
+# - manual_metrics_start_delay: Delay before starting metrics collection
+# - grafana: Grafana configuration for dashboard upload (disabled in dev)
+config :report, Report.PromEx,
+  disabled: false,
+  manual_metrics_start_delay: :no_delay,
+  drop_metrics_groups: [],
+  grafana: :disabled

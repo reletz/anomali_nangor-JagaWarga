@@ -1,0 +1,77 @@
+\chapter{Pembagian Tugas}
+
+\section{Tim Pelaksana}
+
+Implementasi JagaWarga PoC dilakukan oleh tiga anggota tim dengan pembagian tanggung jawab sebagai berikut:
+
+\begin{table}[H]
+\centering
+\caption{Pembagian Tugas dan Tanggung Jawab}
+\label{tab:pembagian_tugas}
+\begin{tabular}{|p{4cm}|p{2.5cm}|p{7.5cm}|}
+\hline
+\textbf{Nama} & \textbf{NIM} & \textbf{Tanggung Jawab Utama} \\
+\hline
+Rhio Bimo Prakoso Sugiyanto & 13523123 & 
+\begin{itemize}[nosep]
+  \item Identity Service (JWT validation mock)
+  \item Anonymizer Service (PII scrubbing pipeline)
+  \item NATS event publisher
+  \item Integration testing scripts
+\end{itemize} \\
+\hline
+Frederiko Eldad Mugiyono & 13523147 & 
+\begin{itemize}[nosep]
+  \item CockroachDB schema design \& encryption
+  \item NATS JetStream configuration
+  \item Traefik TLS setup
+  \item Prometheus + Grafana observability
+  \item Docker Compose orchestration
+\end{itemize} \\
+\hline
+Naufarrel Zhafif Abhista & 13523149 & 
+\begin{itemize}[nosep]
+  \item Report Service (Phoenix/Ecto)
+  \item Escalation Worker (GenServer)
+  \item NATS event publisher integration
+  \item Database optimization
+  \item Prometheus metrics exporter
+\end{itemize} \\
+\hline
+\end{tabular}
+\end{table}
+
+\section{Deliverables per Tim}
+
+\subsection{Tim Infrastructure \& Security (Frederiko Eldad Mugiyono)}
+\begin{itemize}
+  \item Database schema dengan encryption-at-rest di CockroachDB
+  \item Konfigurasi NATS JetStream streams
+  \item Self-signed TLS certificates
+  \item Prometheus scrape configuration
+  \item Grafana dashboard dengan 4 panel monitoring
+  \item Seed data script (100 fake citizens, 5 authorities)
+  \item Docker Compose dengan health checks lengkap
+\end{itemize}
+
+\subsection{Tim Backend Services (Naufarrel Zhafif Abhista)}
+\begin{itemize}
+  \item Phoenix Report Service dengan CRUD operations
+  \item Escalation Worker (GenServer + Quantum scheduler)
+  \item API endpoints: \texttt{POST /reports}, \texttt{GET /reports?department=X}
+  \item Background job untuk auto-escalation stale reports (timeout 30s)
+  \item Health check endpoint: \texttt{GET /health}
+  \item Metrics endpoint: \texttt{GET /metrics} (format Prometheus)
+  \item Database connection pooling \& query optimization
+\end{itemize}
+
+\subsection{Tim Edge Services (Rhio Bimo Prakoso Sugiyanto)}
+\begin{itemize}
+  \item Identity Service dengan JWT validation mock
+  \item Anonymizer Service dengan pipeline PII scrubbing
+  \item NATS event publisher untuk report.created events
+  \item Dockerfiles untuk Bun services
+  \item Request/response logging \& error handling
+  \item Load test script (submit 100 anonymous reports)
+  \item API documentation \& usage examples
+\end{itemize}

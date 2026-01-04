@@ -1,0 +1,25 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'report-service'
+    static_configs:
+      - targets: ['report-service:4000']
+  
+  - job_name: 'cockroachdb'
+    static_configs:
+      - targets: ['db:8080']
+    metrics_path: '/_status/vars'
+  
+  - job_name: 'nats'
+    static_configs:
+      - targets: ['nats-exporter:7777']
+    metrics_path: '/metrics'
+  
+  - job_name: 'identity-service'
+    static_configs:
+      - targets: ['identity-service:3001']
+  
+  - job_name: 'anonymizer-service'
+    static_configs:
+      - targets: ['anonymizer-service:3002']

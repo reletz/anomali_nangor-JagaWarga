@@ -5,8 +5,56 @@ defmodule ReportWeb.Router do
     plug :accepts, ["json"]
   end
 
+  pipeline :authenticated do
+    plug :accepts, ["json"]
+    plug ReportWeb.Plugs.AuthPlug
+  end
+
+  pipeline :citizen_auth do
+    plug :accepts, ["json"]
+    plug ReportWeb.Plugs.AuthPlug
+    plug ReportWeb.Plugs.CitizenAuthPlug
+  end
+
+  # Health check endpoint (no pipeline needed)
+  scope "/", ReportWeb do
+    get "/health", HealthController, :index
+  end
+
+  # Prometheus metrics endpoint
+  # Exposed at GET /metrics for Prometheus scraping
+  scope "/" do
+    get "/metrics", PromEx.Plug, prom_ex_module: Report.PromEx
+  end
+
   scope "/api", ReportWeb do
     pipe_through :api
+
+    # POST /api/reports          - Create a new report
+    post "/reports", ReportController, :create
+
+    # GET  /api/reports/public          - List all reports
+    # GET  /api/reports/public?department=X - List reports by department
+    # GET  /api/reports/public/:id      - Get a single report
+    get "/reports/public", ReportController, :public
+  end
+
+  scope "/api", ReportWeb do
+    pipe_through :citizen_auth
+
+    # Citizens can view their own reports
+    get "/my-reports", ReportController, :my_reports
+    get "/my-reports/:id", ReportController, :my_report
+  end
+
+  scope "/api", ReportWeb do
+    pipe_through :authenticated
+
+    # Report endpoints
+    # GET  /api/reports          - List all reports
+    # GET  /api/reports?department=X - List reports by department
+    # GET  /api/reports/:id      - Get a single report
+    resources "/reports", ReportController, only: [:index, :show]
   end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development

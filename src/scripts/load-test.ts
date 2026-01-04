@@ -46,16 +46,12 @@ async function submitReport(index: number): Promise<{ success: boolean; time: nu
   
   try {
     const sample = sampleReports[index % sampleReports.length];
-    const report = {
-      content: `${sample.content} [Report #${index}]`,
-      category: sample.category,
-      location: locations[Math.floor(Math.random() * locations.length)],
-    };
+    const reportText = `${sample.content} [Report #${index}] at ${locations[Math.floor(Math.random() * locations.length)]}`;
 
-    const response = await fetch(`${ANONYMIZER_URL}/reports`, {
+    const response = await fetch(`${ANONYMIZER_URL}/scrub`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(report),
+      body: JSON.stringify({ text: reportText }),
     });
 
     const data = await response.json();
@@ -66,8 +62,8 @@ async function submitReport(index: number): Promise<{ success: boolean; time: nu
       return { success: false, time: endTime - startTime, pii: 0 };
     }
 
-    const piiCount = data.scrubbing?.pii_detected || 0;
-    console.log(`✅ Report ${index}: ${data.report.id} (${piiCount} PII scrubbed, ${endTime - startTime}ms)`);
+    const piiCount = data.pii_detected ?? 0;
+    console.log(`✅ Request ${index}: scrubbed ${piiCount} PII in ${endTime - startTime}ms`);
     
     return { success: true, time: endTime - startTime, pii: piiCount };
   } catch (error) {
