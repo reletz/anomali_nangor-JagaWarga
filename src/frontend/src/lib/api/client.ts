@@ -8,6 +8,7 @@ export const apiClient = axios.create({
     'Content-Type': 'application/json',
   },
   timeout: 10000,
+  withCredentials: false,
 })
 
 apiClient.interceptors.request.use(
@@ -28,7 +29,6 @@ apiClient.interceptors.request.use(
 
 apiClient.interceptors.response.use(
   (response) => {
-    console.log(`✅ ${response.config.url} (${response.status})`)
     return response
   },
   (error) => {

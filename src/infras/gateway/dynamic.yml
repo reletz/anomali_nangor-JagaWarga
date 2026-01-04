@@ -1,14 +1,5 @@
 http:
   routers:
-    frontend:
-      rule: "PathPrefix(`/`)"
-      service: frontend-service
-      entryPoints:
-        - web
-      priority: 1
-      middlewares:
-        - frontend-headers
-
     anonymizer:
       rule: "PathPrefix(`/anonymizer`)"
       service: anonymizer-service
@@ -70,21 +61,8 @@ http:
         accessControlAllowCredentials: true
         accessControlMaxAge: 86400
         addVaryHeader: true
-    
-    frontend-headers:
-      headers:
-        customResponseHeaders:
-          X-Frame-Options: "SAMEORIGIN"
-          X-Content-Type-Options: "nosniff"
-          X-XSS-Protection: "1; mode=block"
-          Referrer-Policy: "strict-origin-when-cross-origin"
 
   services:
-    frontend-service:
-        loadBalancer:
-          servers:
-            - url: "http://frontend:5000"
-
     anonymizer-service:
       loadBalancer:
         servers:
