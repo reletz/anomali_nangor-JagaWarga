@@ -25,30 +25,30 @@ export interface CreateReportRequest {
   authority_department: string
 }
 
-export const CATEGORIES: { value: Category; label: string; icon: string }[] = [
-  { value: 'sampah', label: 'Sampah', icon: '🗑️' },
-  { value: 'keamanan', label: 'Keamanan', icon: '🚨' },
-  { value: 'kesehatan', label: 'Kesehatan', icon: '🏥' },
-  { value: 'infrastruktur', label: 'Infrastruktur', icon: '🏗️' },
-]
+export const CATEGORIES = [
+  { value: 'sampah' as Category, label: 'Sampah' },
+  { value: 'keamanan' as Category, label: 'Keamanan' },
+  { value: 'kesehatan' as Category, label: 'Kesehatan' },
+  { value: 'infrastruktur' as Category, label: 'Infrastruktur' },
+] as const
 
-export const PRIVACY_LEVELS: { value: PrivacyLevel; label: string; description: string }[] = [
+export const PRIVACY_LEVELS = [
   {
-    value: 'public',
+    value: 'public' as PrivacyLevel,
     label: 'Publik',
     description: 'Laporan dapat dilihat oleh semua orang',
   },
   {
-    value: 'private',
+    value: 'private' as PrivacyLevel,
     label: 'Privat',
     description: 'Hanya Anda dan petugas yang bisa melihat',
   },
   {
-    value: 'anonymous',
+    value: 'anonymous' as PrivacyLevel,
     label: 'Anonim',
     description: 'Identitas Anda tidak akan tercatat',
   },
-]
+] as const
 
 export const STATUS_LABELS: Record<ReportStatus, string> = {
   submitted: 'Diterima',
