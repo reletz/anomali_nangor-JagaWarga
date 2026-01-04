@@ -68,3 +68,12 @@ config :phoenix, :plug_init_mode, :runtime
 
 # Disable swoosh api client as it is only required for production adapters.
 config :swoosh, :api_client, false
+
+# Escalation Worker Configuration
+# - check_interval_ms: How often to check for stale reports (default: 10s)
+# - stale_threshold_sec: How old a report must be to escalate (default: 30s)
+# - enabled: Whether the worker is active (default: true)
+config :report, Report.EscalationWorker,
+  check_interval_ms: 10_000,
+  stale_threshold_sec: 30,
+  enabled: true

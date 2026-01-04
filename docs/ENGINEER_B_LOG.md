@@ -302,8 +302,105 @@ This document tracks the step-by-step implementation of the Backend Services (Re
         *   `plug :accepts, ["json"]`: Validates `Accept: application/json` header.
         *   Returns HTTP 406 (Not Acceptable) for non-JSON requests.
 
-### ⏳ Step 4: Escalation Worker (Pending)
-**Goal:** Implement GenServer for auto-escalation.
+### ✅ Step 4: Escalation Worker (Completed)
+**Goal:** Implement GenServer for auto-escalation of stale reports.
+
+#### Requirements (from ProjectCanvas):
+- **FR-8**: Auto-escalation worker for stale reports
+- **Timeout**: 30 seconds - if a report stays in "submitted" status for 30s, escalate it
+- **Interval**: Every 10 seconds - worker checks for stale reports
+- **Action**: Change status from "submitted" → "escalated" and set `escalated_at` timestamp
+
+#### Implementation Summary:
+
+1.  ✅ **Created GenServer Module** (`Report.EscalationWorker`):
+    *   File: `src/services/report/lib/report/escalation_worker.ex`
+    *   Uses `Process.send_after/3` for recurring checks (lighter than Quantum)
+    *   Configurable via application environment
+    *   Features:
+        - `start_link/1` - Starts the worker
+        - `status/0` - Returns worker state (for debugging/monitoring)
+        - `check_now/0` - Manually trigger check (for testing)
+
+2.  ✅ **Added Worker to Supervision Tree** (`Report.Application`):
+    *   Position: After `Report.Repo` (needs DB access)
+    *   Restart Strategy: `:one_for_one` (fault isolation)
+
+3.  ✅ **Configuration** (`config/dev.exs`):
+    ```elixir
+    config :report, Report.EscalationWorker,
+      check_interval_ms: 10_000,    # Check every 10 seconds
+      stale_threshold_sec: 30,      # Escalate after 30 seconds
+      enabled: true
+    ```
+
+4.  ✅ **Logging & Observability**:
+    *   Logs when worker starts with configuration
+    *   Logs each escalation with report details (ID, category, department, age)
+    *   Logs error if DB update fails
+
+#### Code Highlights:
+
+**Worker Initialization:**
+```elixir
+def init(_opts) do
+  config = get_config()
+  if config.enabled do
+    Logger.info("[EscalationWorker] Started - Check: #{config.check_interval_ms}ms, Threshold: #{config.stale_threshold_sec}s")
+    schedule_check(config.check_interval_ms)
+    {:ok, %{config: config, last_check: nil, total_escalated: 0, checks_performed: 0}}
+  else
+    {:ok, %{config: config, enabled: false}}
+  end
+end
+```
+
+**Escalation Logic:**
+```elixir
+defp perform_escalation_check(state) do
+  cutoff = DateTime.utc_now()
+           |> DateTime.add(-state.config.stale_threshold_sec, :second)
+           |> DateTime.truncate(:second)
+
+  stale_reports = Reports.list_stale_reports(cutoff)
+  escalated_count = escalate_reports(stale_reports)
+
+  %{state |
+    last_check: DateTime.utc_now(),
+    total_escalated: state.total_escalated + escalated_count,
+    checks_performed: state.checks_performed + 1
+  }
+end
+```
+
+**Supervision Tree:**
+```
+Report.Supervisor (one_for_one)
+├── ReportWeb.Telemetry
+├── Report.Repo
+├── Report.EscalationWorker  ✅
+├── DNSCluster
+├── Phoenix.PubSub
+└── ReportWeb.Endpoint
+```
+
+#### Testing Instructions:
+1. Start services: `docker compose up -d`
+2. Create a report: 
+   ```bash
+   curl -X POST http://localhost:4000/api/reports \
+     -H "Content-Type: application/json" \
+     -d '{"report": {"category": "kebersihan", "content": "Test report", "location": "Bandung", "privacy_level": "anonymous", "authority_department": "kebersihan"}}'
+   ```
+3. Wait 30+ seconds
+4. Check logs: `docker compose logs report-service | grep Escalated`
+5. Verify status changed: `curl http://localhost:4000/api/reports/:id`
+
+#### Why GenServer over Quantum?
+- **Simpler**: No cron expression parsing needed
+- **Lighter**: GenServer is built-in, Quantum adds complexity
+- **PoC-appropriate**: 10-second intervals don't need cron precision
+- **Easier testing**: Can mock `Process.send_after` in tests
 
 ### ⏳ Step 5: Observability & NATS (Pending)
 **Goal:** Wire up Prometheus and NATS publishing.

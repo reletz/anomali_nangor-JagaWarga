@@ -10,6 +10,9 @@ defmodule Report.Application do
     children = [
       ReportWeb.Telemetry,
       Report.Repo,
+      # Escalation Worker - checks for stale reports every 10s
+      # Must be after Repo since it needs DB access
+      Report.EscalationWorker,
       {DNSCluster, query: Application.get_env(:report, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Report.PubSub},
       # Start a worker by calling: Report.Worker.start_link(arg)
