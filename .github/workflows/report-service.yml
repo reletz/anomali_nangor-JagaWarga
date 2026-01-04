@@ -283,12 +283,20 @@ jobs:
             echo "Waiting for CockroachDB... ($i/30)"
             sleep 3
           done
+          
+          # Check if we actually connected
+          if ! docker compose exec -T db /cockroach/cockroach sql --insecure -e "SELECT 1" 2>/dev/null; then
+            echo "Failed to connect to CockroachDB after 30 attempts!"
+            docker compose logs db
+            exit 1
+          fi
 
       - name: Run database migrations
         run: |
-          # Create database and run migrations via report-service
+          echo "Creating database..."
           docker compose exec -T db /cockroach/cockroach sql --insecure -e "CREATE DATABASE IF NOT EXISTS jagawargadb"
-          # Give report-service time to connect
+          echo "Database created successfully"
+          # Give report-service time to reconnect
           sleep 5
 
       - name: Wait for services to be healthy
