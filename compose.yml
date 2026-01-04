@@ -25,15 +25,30 @@ services:
     container_name: jagawarga-mb
     command: "-js -m 8222"
     ports:
-      - "4222:4222" # for functionalies
-      - "8222:8222" # for monitoring
+      - "4222:4222"
+      - "8222:8222"
+    volumes:
+      - nats-data:/data
     networks:
       - jagawarga-net
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "4222"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8222/healthz"]
       interval: 5s
       timeout: 3s
       retries: 3
+  
+  nats-exporter:
+    image: natsio/prometheus-nats-exporter:latest
+    container_name: jagawarga-nats-exporter
+    command:
+      - "-varz"
+      - "http://mb:8222"
+    ports:
+      - "7777:7777"
+    networks:
+      - jagawarga-net
+    depends_on:
+      - mb
   
   gateway:
     image: traefik:latest
