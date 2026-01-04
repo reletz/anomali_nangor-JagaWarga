@@ -1,5 +1,6 @@
 defmodule ReportWeb.ErrorJSONTest do
-  use ReportWeb.ConnCase, async: true
+  # Simple unit test - no DB or Conn needed
+  use ExUnit.Case, async: true
 
   test "renders 404" do
     assert ReportWeb.ErrorJSON.render("404.json", %{}) == %{errors: %{detail: "Not Found"}}

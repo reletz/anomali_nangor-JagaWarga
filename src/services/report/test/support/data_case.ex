@@ -34,10 +34,13 @@ defmodule Report.DataCase do
 
   @doc """
   Sets up the sandbox based on the test tags.
+  Only runs if Repo is started (for unit tests without DB).
   """
   def setup_sandbox(tags) do
-    pid = Ecto.Adapters.SQL.Sandbox.start_owner!(Report.Repo, shared: not tags[:async])
-    on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
+    if Application.get_env(:report, :start_repo, true) do
+      pid = Ecto.Adapters.SQL.Sandbox.start_owner!(Report.Repo, shared: not tags[:async])
+      on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
+    end
   end
 
   @doc """
