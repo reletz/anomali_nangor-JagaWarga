@@ -87,7 +87,7 @@ jobs:
         run: mix deps.get
 
       - name: Run Credo
-        run: mix credo --strict || true  # Don't fail on credo warnings for now
+        run: mix credo --strict || true
 
   # ==========================================================================
   # Job 3: Unit Tests (without DB)
@@ -123,7 +123,6 @@ jobs:
       - name: Run unit tests (exclude DB tests)
         run: mix test --exclude integration --exclude db
         env:
-          # Disable components that need external services
           NATS_ENABLED: false
           START_REPO: false
 
@@ -232,6 +231,9 @@ jobs:
           mkdir -p certs
           echo "${{ secrets.COCKROACH_AES_KEY }}" | base64 -d > certs/aes-256.key
           chmod 600 certs/aes-256.key
+          # Debug: verify key file
+          echo "Key file size: $(wc -c < certs/aes-256.key) bytes"
+          ls -la certs/
 
       - name: Build Docker image
         run: |
@@ -239,57 +241,132 @@ jobs:
 
       - name: Start services with docker-compose
         run: |
-          docker compose -f compose.yml up -d db mb report-service
-        env:
-          COMPOSE_PROJECT_NAME: jagawarga-test
+          echo "Starting services..."
+          docker compose -f compose.yml up -d db mb gateway report-service 2>&1 || {
+            echo "Failed to start services!"
+            echo "Docker info:"
+            docker info
+            echo ""
+            echo "Compose config validation:"
+            docker compose -f compose.yml config
+            exit 1
+          }
+          echo "Waiting for containers to initialize..."
+          sleep 5
+          echo "Current containers:"
+          docker ps -a
+
+      - name: Wait for DB to be ready
+        run: |
+          echo "Waiting for CockroachDB..."
+          # First check container status
+          echo "Container status:"
+          docker compose ps
+          echo ""
+          echo "DB container logs:"
+          docker compose logs db --tail=50
+          echo ""
+          
+          for i in {1..30}; do
+            # Check if container is still running
+            if ! docker compose ps db | grep -q "Up"; then
+              echo "DB container crashed! Full logs:"
+              docker compose logs db
+              exit 1
+            fi
+            
+            if docker compose exec -T db /cockroach/cockroach sql --insecure -e "SELECT 1" 2>/dev/null; then
+              echo "CockroachDB is ready!"
+              break
+            fi
+            echo "Waiting for CockroachDB... ($i/30)"
+            sleep 3
+          done
+          
+          # Check if we actually connected
+          if ! docker compose exec -T db /cockroach/cockroach sql --insecure -e "SELECT 1" 2>/dev/null; then
+            echo "Failed to connect to CockroachDB after 30 attempts!"
+            docker compose logs db
+            exit 1
+          fi
+
+      - name: Run database migrations
+        run: |
+          echo "Creating database..."
+          docker compose exec -T db /cockroach/cockroach sql --insecure -e "CREATE DATABASE IF NOT EXISTS jagawargadb"
+          echo "Database created successfully"
+          
+          echo "Restarting report-service to reconnect with new database..."
+          docker compose restart report-service
+          
+          echo "Waiting for report-service to restart..."
+          sleep 10
+          
+          echo "Running migrations..."
+          docker compose exec -T report-service mix ecto.migrate || {
+            echo "Migration failed, checking logs..."
+            docker compose logs report-service
+            exit 1
+          }
+          echo "Migrations completed successfully"
 
       - name: Wait for services to be healthy
         run: |
-          echo "Waiting for services to start..."
-          sleep 30
+          echo "Waiting for report-service..."
+          docker compose logs report-service --tail=20
           
-          # Check if report-service is running
-          docker compose logs report-service
-          
-          # Wait for health check
+          # Wait for health check with HTTP 200 (not just body match)
           for i in {1..30}; do
-            if curl -s http://localhost:8000/reports/health | grep -q "ok"; then
-              echo "Health check passed!"
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/reports/health)
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "Health check passed! (HTTP $HTTP_CODE)"
               exit 0
             fi
-            echo "Waiting for health check... ($i/30)"
+            echo "Waiting for health check... ($i/30) - HTTP $HTTP_CODE"
             sleep 2
           done
           echo "Health check failed!"
           docker compose logs report-service
+          docker compose logs db
           exit 1
 
       - name: Test API endpoints
         run: |
+          echo "Waiting for service to stabilize..."
+          sleep 5
+          
           echo "Testing GET /health..."
-          curl -f http://localhost:8000/reports/health
+          curl -v -f http://localhost:8000/reports/health || {
+            echo "Health endpoint failed, checking logs..."
+            docker compose logs report-service
+            exit 1
+          }
           
           echo ""
           echo "Testing GET /metrics..."
           curl -f http://localhost:8000/reports/metrics | head -20
           
           echo ""
-          echo "Testing GET /api/reports..."
-          curl -f http://localhost:8000/reports/api/reports
+          echo "Testing GET /api/reports/public (no auth required)..."
+          curl -f http://localhost:8000/reports/api/reports/public
           
           echo ""
-          echo "Testing POST /api/reports..."
+          echo "Testing POST /api/reports (create report, no auth required)..."
           RESPONSE=$(curl -s -X POST http://localhost:8000/reports/api/reports \
             -H "Content-Type: application/json" \
-            -d '{"report": {"category": "kebersihan", "content": "CI test report", "location": "GitHub Actions", "privacy_level": "anonymous", "authority_department": "kebersihan"}}')
+            -d '{"report": {"category": "kebersihan", "content": "CI test report", "location": "GitHub Actions", "privacy_level": "public", "authority_department": "kebersihan"}}')
           echo "$RESPONSE"
           
-          # Extract report ID and test GET by ID
+          # Extract report ID and verify it was created
           REPORT_ID=$(echo "$RESPONSE" | jq -r '.data.id')
-          if [ "$REPORT_ID" != "null" ]; then
+          if [ "$REPORT_ID" != "null" ] && [ -n "$REPORT_ID" ]; then
             echo ""
-            echo "Testing GET /api/reports/$REPORT_ID..."
-            curl -f "http://localhost:8000/reports/api/reports/$REPORT_ID"
+            echo "Report created with ID: $REPORT_ID"
+            echo "Testing GET /api/reports/public to verify report appears..."
+            curl -f http://localhost:8000/reports/api/reports/public | jq ".data[] | select(.id == \"$REPORT_ID\")"
+          else
+            echo "Failed to create report!"
+            exit 1
           fi
           
           echo ""

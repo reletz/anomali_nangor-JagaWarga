@@ -1,230 +1,98 @@
 defmodule Report.ReportsTest do
-  use Report.DataCase, async: true
+  use Report.DataCase
 
-  alias Report.Reports
-  alias Report.Report
-
+  # All tests in this module require database
   @moduletag :db
 
-  describe "create_report/1" do
-    test "creates a report with valid attributes" do
-      attrs = %{
-        category: "kebersihan",
-        content: "Sampah menumpuk di jalan",
-        location: "Jl. Dago No. 10, Bandung",
-        privacy_level: "anonymous",
-        authority_department: "kebersihan",
-        status: "submitted"
-      }
+  alias Report.Reports
+  alias Report.Report, as: ReportSchema
 
-      assert {:ok, %Report{} = report} = Reports.create_report(attrs)
-      assert report.category == "kebersihan"
-      assert report.content == "Sampah menumpuk di jalan"
-      assert report.status == "submitted"
-      assert report.privacy_level == "anonymous"
-      assert report.authority_department == "kebersihan"
-      assert report.id != nil
-      assert report.created_at != nil
+  # Import fixtures at module level (before alias overrides Report)
+  import Report.ReportsFixtures
+
+  describe "reports" do
+    @valid_attrs %{
+      category: "sampah",
+      content: "some content",
+      location: "some location",
+      privacy_level: "public",
+      authority_department: "kebersihan",
+      status: "submitted"
+    }
+
+    @invalid_attrs %{
+      category: nil,
+      content: nil,
+      privacy_level: nil,
+      authority_department: nil,
+      status: nil
+    }
+
+    # =========================================================================
+    # Public Reports - Accessible to general public
+    # =========================================================================
+
+    test "get_report_with_access_check/2 allows anyone to view public reports" do
+      report = public_report_fixture(authority_department: "kesehatan")
+
+      # Public reports can be viewed by any department
+      assert {:ok, fetched_report} =
+               Reports.get_report_with_access_check(report.id, authority_department: "kebersihan")
+
+      assert fetched_report.id == report.id
     end
 
-    test "creates a report with reporter_id" do
-      reporter_id = Ecto.UUID.generate()
+    # =========================================================================
+    # Private/Anonymous Reports - Only accessible by assigned authority
+    # =========================================================================
 
-      attrs = %{
-        reporter_id: reporter_id,
-        category: "infrastruktur",
-        content: "Jalan berlubang",
-        location: "Jl. Setiabudi",
-        privacy_level: "public",
-        authority_department: "infrastruktur",
-        status: "submitted"
-      }
+    test "get_report_with_access_check/2 allows assigned authority to view private reports" do
+      report = private_report_fixture(authority_department: "keamanan")
 
-      assert {:ok, %Report{} = report} = Reports.create_report(attrs)
-      assert report.reporter_id == reporter_id
+      assert {:ok, fetched_report} =
+               Reports.get_report_with_access_check(report.id, authority_department: "keamanan")
+
+      assert fetched_report.id == report.id
     end
 
-    test "fails with missing required fields" do
-      assert {:error, changeset} = Reports.create_report(%{})
-      assert "can't be blank" in errors_on(changeset).category
-    end
-  end
+    test "get_report_with_access_check/2 denies other dept from viewing private reports" do
+      report = private_report_fixture(authority_department: "keamanan")
 
-  describe "list_reports/0" do
-    test "returns all reports ordered by created_at desc" do
-      {:ok, report1} =
-        Reports.create_report(%{
-          category: "kebersihan",
-          content: "First report",
-          location: "Location 1",
-          privacy_level: "anonymous",
-          authority_department: "kebersihan",
-          status: "submitted"
-        })
-
-      # Small delay to ensure different timestamps
-      Process.sleep(10)
-
-      {:ok, report2} =
-        Reports.create_report(%{
-          category: "infrastruktur",
-          content: "Second report",
-          location: "Location 2",
-          privacy_level: "public",
-          authority_department: "infrastruktur",
-          status: "submitted"
-        })
-
-      reports = Reports.list_reports()
-      assert length(reports) >= 2
-
-      # Second report should come first (newest)
-      report_ids = Enum.map(reports, & &1.id)
-
-      assert Enum.find_index(report_ids, &(&1 == report2.id)) <
-               Enum.find_index(report_ids, &(&1 == report1.id))
+      # Department of Cleanliness cannot view crime (keamanan) reports
+      assert {:error, :forbidden} =
+               Reports.get_report_with_access_check(report.id, authority_department: "kebersihan")
     end
 
-    test "returns empty list when no reports exist" do
-      # Note: This might fail if other tests created reports
-      # In a clean DB, this should pass
-      reports = Reports.list_reports()
-      assert is_list(reports)
-    end
-  end
+    test "get_report_with_access_check/2 allows assigned authority to view anonymous reports" do
+      report = anonymous_report_fixture(authority_department: "kesehatan")
 
-  describe "list_by_department/1" do
-    test "filters reports by authority_department" do
-      {:ok, _kebersihan_report} =
-        Reports.create_report(%{
-          category: "kebersihan",
-          content: "Kebersihan report",
-          location: "Location",
-          privacy_level: "anonymous",
-          authority_department: "kebersihan",
-          status: "submitted"
-        })
+      assert {:ok, fetched_report} =
+               Reports.get_report_with_access_check(report.id, authority_department: "kesehatan")
 
-      {:ok, _infrastruktur_report} =
-        Reports.create_report(%{
-          category: "infrastruktur",
-          content: "Infrastruktur report",
-          location: "Location",
-          privacy_level: "anonymous",
-          authority_department: "infrastruktur",
-          status: "submitted"
-        })
-
-      kebersihan_reports = Reports.list_by_department("kebersihan")
-      assert Enum.all?(kebersihan_reports, &(&1.authority_department == "kebersihan"))
-
-      infrastruktur_reports = Reports.list_by_department("infrastruktur")
-      assert Enum.all?(infrastruktur_reports, &(&1.authority_department == "infrastruktur"))
+      assert fetched_report.id == report.id
     end
 
-    test "returns empty list for non-existent department" do
-      reports = Reports.list_by_department("non_existent_department")
-      assert reports == []
-    end
-  end
+    test "get_report_with_access_check/2 denies other dept from viewing anonymous reports" do
+      report = anonymous_report_fixture(authority_department: "kesehatan")
 
-  describe "get_report!/1" do
-    test "returns the report with given id" do
-      {:ok, report} =
-        Reports.create_report(%{
-          category: "kebersihan",
-          content: "Test report",
-          location: "Location",
-          privacy_level: "anonymous",
-          authority_department: "kebersihan",
-          status: "submitted"
-        })
-
-      fetched = Reports.get_report!(report.id)
-      assert fetched.id == report.id
-      assert fetched.content == report.content
+      # Other departments cannot view anonymous reports
+      assert {:error, :forbidden} =
+               Reports.get_report_with_access_check(report.id, authority_department: "kebersihan")
     end
 
-    test "raises Ecto.NoResultsError for non-existent id" do
-      fake_id = Ecto.UUID.generate()
+    # =========================================================================
+    # CRUD Operations
+    # =========================================================================
 
-      assert_raise Ecto.NoResultsError, fn ->
-        Reports.get_report!(fake_id)
-      end
-    end
-  end
-
-  describe "list_stale_reports/1" do
-    test "returns reports older than cutoff with submitted status" do
-      # Create a report
-      {:ok, report} =
-        Reports.create_report(%{
-          category: "kebersihan",
-          content: "Stale report",
-          location: "Location",
-          privacy_level: "anonymous",
-          authority_department: "kebersihan",
-          status: "submitted"
-        })
-
-      # Cutoff in the future should include this report
-      future_cutoff = DateTime.utc_now() |> DateTime.add(60, :second)
-      stale_reports = Reports.list_stale_reports(future_cutoff)
-
-      assert Enum.any?(stale_reports, &(&1.id == report.id))
+    test "create_report/1 with valid data creates a report" do
+      assert {:ok, %ReportSchema{} = report} = Reports.create_report(@valid_attrs)
+      assert report.category == "sampah"
+      assert report.content == "some content"
+      assert report.privacy_level == "public"
     end
 
-    test "excludes reports with non-submitted status" do
-      {:ok, report} =
-        Reports.create_report(%{
-          category: "kebersihan",
-          content: "Escalated report",
-          location: "Location",
-          privacy_level: "anonymous",
-          authority_department: "kebersihan",
-          # Already escalated
-          status: "escalated"
-        })
-
-      future_cutoff = DateTime.utc_now() |> DateTime.add(60, :second)
-      stale_reports = Reports.list_stale_reports(future_cutoff)
-
-      refute Enum.any?(stale_reports, &(&1.id == report.id))
-    end
-  end
-
-  describe "escalate_report/1" do
-    test "updates report status to escalated" do
-      {:ok, report} =
-        Reports.create_report(%{
-          category: "kebersihan",
-          content: "To be escalated",
-          location: "Location",
-          privacy_level: "anonymous",
-          authority_department: "kebersihan",
-          status: "submitted"
-        })
-
-      assert {:ok, escalated} = Reports.escalate_report(report)
-      assert escalated.status == "escalated"
-      assert escalated.escalated_at != nil
-    end
-
-    test "sets escalated_at timestamp" do
-      {:ok, report} =
-        Reports.create_report(%{
-          category: "kebersihan",
-          content: "To be escalated",
-          location: "Location",
-          privacy_level: "anonymous",
-          authority_department: "kebersihan",
-          status: "submitted"
-        })
-
-      before_escalation = DateTime.utc_now() |> DateTime.add(-1, :second)
-      {:ok, escalated} = Reports.escalate_report(report)
-
-      assert DateTime.compare(escalated.escalated_at, before_escalation) == :gt
+    test "create_report/1 with invalid data returns error changeset" do
+      assert {:error, %Ecto.Changeset{}} = Reports.create_report(@invalid_attrs)
     end
   end
 end

@@ -35,4 +35,20 @@ defmodule ReportWeb.ConnCase do
     Report.DataCase.setup_sandbox(tags)
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
+
+  @doc """
+  Authenticate a connection as an authority from a specific department.
+  Uses a special test token that the AuthPlug recognizes in test mode.
+  """
+  def authenticate_as_authority(conn, department \\ "kebersihan") do
+    # Set a special test header that AuthPlug will recognize
+    conn
+    |> Plug.Conn.put_req_header("x-test-auth", "true")
+    |> Plug.Conn.put_req_header("x-test-department", department)
+    |> Plug.Conn.put_req_header("x-test-user-id", "test-authority-#{department}")
+  end
+
+  def generate_test_token(department \\ "kebersihan") do
+    "test-token-#{department}-#{:erlang.unique_integer()}"
+  end
 end
