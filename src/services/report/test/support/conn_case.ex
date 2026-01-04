@@ -35,4 +35,19 @@ defmodule ReportWeb.ConnCase do
     Report.DataCase.setup_sandbox(tags)
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
+
+  def authenticate_as_authority(conn, department \\ "kebersihan") do
+    user = %{
+      "id" => "test-authority-#{department}",
+      "department" => department,
+      "email" => "#{department}@bandung.go.id"
+    }
+
+    conn
+    |> Plug.Conn.assign(:current_user, user)
+  end
+
+  generate_test_token(department \\ "kebersihan") do
+    "test-token-#{department}-#{:erlang.unique_integer()}"
+  end
 end
