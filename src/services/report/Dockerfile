@@ -10,5 +10,6 @@ COPY . .
 RUN mix do compile
 EXPOSE 4000
 
-# Get deps again at runtime in case volume mount overwrites them
-CMD ["sh", "-c", "mix deps.get && mix phx.server"]
+# Auto-migrate and start server
+# Get deps again in case volume mount overwrites them
+CMD ["sh", "-c", "mix deps.get && mix ecto.migrate && mix phx.server"]
