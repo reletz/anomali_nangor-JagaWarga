@@ -296,8 +296,12 @@ jobs:
           echo "Creating database..."
           docker compose exec -T db /cockroach/cockroach sql --insecure -e "CREATE DATABASE IF NOT EXISTS jagawargadb"
           echo "Database created successfully"
-          # Give report-service time to reconnect
-          sleep 5
+          
+          echo "Restarting report-service to reconnect with new database..."
+          docker compose restart report-service
+          
+          echo "Waiting for report-service to restart..."
+          sleep 10
 
       - name: Wait for services to be healthy
         run: |
