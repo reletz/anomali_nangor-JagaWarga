@@ -5,6 +5,11 @@ defmodule ReportWeb.Router do
     plug :accepts, ["json"]
   end
 
+  pipeline :authenticated do
+    plug :accepts, ["json"]
+    plug ReportWeb.Plugs.AuthPlug
+  end
+
   # Health check endpoint (no pipeline needed)
   scope "/", ReportWeb do
     get "/health", HealthController, :index
@@ -19,12 +24,18 @@ defmodule ReportWeb.Router do
   scope "/api", ReportWeb do
     pipe_through :api
 
+    # POST /api/reports          - Create a new report
+    resources "/reports", ReportController, only: [:create]
+  end
+
+  scope "/api", ReportWeb do
+    pipe_through :authenticated
+
     # Report endpoints
     # GET  /api/reports          - List all reports
     # GET  /api/reports?department=X - List reports by department
-    # POST /api/reports          - Create a new report
     # GET  /api/reports/:id      - Get a single report
-    resources "/reports", ReportController, only: [:index, :create, :show]
+    resources "/reports", ReportController, only: [:index, :show]
   end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development
