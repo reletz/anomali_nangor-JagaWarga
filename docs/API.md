@@ -4,7 +4,7 @@
 
 ### Base URL
 ```
-http://localhost:3001
+http://localhost:8000/identity
 ```
 
 ### Endpoints
@@ -62,7 +62,7 @@ Authenticate and get JWT token.
 
 **cURL Example:**
 ```bash
-curl -X POST http://localhost:3001/login \
+curl -X POST http://localhost:8000/identity/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "kebersihan@bandung.go.id",
@@ -105,7 +105,7 @@ Verify JWT token and get user info.
 
 **cURL Example:**
 ```bash
-curl -X POST http://localhost:3001/validate \
+curl -X POST http://localhost:8000/identity/validate \
   -H "Content-Type: application/json" \
   -d '{
     "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
@@ -118,7 +118,7 @@ curl -X POST http://localhost:3001/validate \
 
 ### Base URL
 ```
-http://localhost:3002
+http://localhost:8000/anonymizer
 ```
 
 ### Endpoints
@@ -171,7 +171,7 @@ Detect and redact PII (Personally Identifiable Information).
 
 **cURL Example:**
 ```bash
-curl -X POST http://localhost:3002/scrub \
+curl -X POST http://localhost:8000/anonymizer/scrub \
   -H "Content-Type: application/json" \
   -d '{
     "text": "Hubungi saya di 081234567890 atau email@example.com, NIK: 3201234567890123"
@@ -198,7 +198,7 @@ The anonymizer detects and scrubs the following PII:
 
 ### Step 1: Login as Authority
 ```bash
-TOKEN=$(curl -s -X POST http://localhost:3001/login \
+TOKEN=$(curl -s -X POST http://localhost:8000/identity/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "kebersihan@bandung.go.id",
@@ -210,14 +210,14 @@ echo "Token: $TOKEN"
 
 ### Step 2: Validate Token
 ```bash
-curl -s -X POST http://localhost:3001/validate \
+curl -s -X POST http://localhost:8000/identity/validate \
   -H "Content-Type: application/json" \
   -d "{\"token\": \"$TOKEN\"}" | jq .
 ```
 
 ### Step 3: Test PII Scrubbing
 ```bash
-curl -s -X POST http://localhost:3002/scrub \
+curl -s -X POST http://localhost:8000/anonymizer/scrub \
   -H "Content-Type: application/json" \
   -d '{
     "text": "Saya Ahmad (NIK: 3201234567890001), tinggal di Jl. Sudirman No. 45. Hubungi saya di 081234567890 atau ahmad@email.com"
@@ -227,10 +227,10 @@ curl -s -X POST http://localhost:3002/scrub \
 ### Step 4: Health Checks
 ```bash
 # Identity Service
-curl -s http://localhost:3001/health | jq .
+curl -s http://localhost:8000/identity/health | jq .
 
 # Anonymizer Service
-curl -s http://localhost:3002/health | jq .
+curl -s http://localhost:8000/anonymizer/health | jq .
 ```
 
 ---
