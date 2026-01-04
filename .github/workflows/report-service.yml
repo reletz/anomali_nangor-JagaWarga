@@ -243,25 +243,43 @@ jobs:
         env:
           COMPOSE_PROJECT_NAME: jagawarga-test
 
+      - name: Wait for DB to be ready
+        run: |
+          echo "Waiting for CockroachDB..."
+          for i in {1..30}; do
+            if docker compose exec -T db /cockroach/cockroach sql --insecure -e "SELECT 1" 2>/dev/null; then
+              echo "CockroachDB is ready!"
+              break
+            fi
+            echo "Waiting for CockroachDB... ($i/30)"
+            sleep 3
+          done
+
+      - name: Run database migrations
+        run: |
+          # Create database and run migrations via report-service
+          docker compose exec -T db /cockroach/cockroach sql --insecure -e "CREATE DATABASE IF NOT EXISTS jagawargadb"
+          # Give report-service time to connect
+          sleep 5
+
       - name: Wait for services to be healthy
         run: |
-          echo "Waiting for services to start..."
-          sleep 30
+          echo "Waiting for report-service..."
+          docker compose logs report-service --tail=20
           
-          # Check if report-service is running
-          docker compose logs report-service
-          
-          # Wait for health check
+          # Wait for health check with HTTP 200 (not just body match)
           for i in {1..30}; do
-            if curl -s http://localhost:8000/reports/health | grep -q "ok"; then
-              echo "Health check passed!"
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/reports/health)
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "Health check passed! (HTTP $HTTP_CODE)"
               exit 0
             fi
-            echo "Waiting for health check... ($i/30)"
+            echo "Waiting for health check... ($i/30) - HTTP $HTTP_CODE"
             sleep 2
           done
           echo "Health check failed!"
           docker compose logs report-service
+          docker compose logs db
           exit 1
 
       - name: Test API endpoints
