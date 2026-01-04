@@ -25,7 +25,12 @@ defmodule ReportWeb.Router do
     pipe_through :api
 
     # POST /api/reports          - Create a new report
-    resources "/reports", ReportController, only: [:create]
+    post "/reports", ReportController, :create
+
+    # GET  /api/reports/public          - List all reports
+    # GET  /api/reports/public?department=X - List reports by department
+    # GET  /api/reports/public/:id      - Get a single report
+    get "/reports/public", ReportController, :public
   end
 
   scope "/api", ReportWeb do
