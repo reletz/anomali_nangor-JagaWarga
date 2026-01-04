@@ -2,9 +2,7 @@ defmodule ReportWeb.ReportController do
   use ReportWeb, :controller
 
   alias Report.Reports
-  alias Report.Report
-  alias Report.NatsPublisher
-  alias Report.Telemetry
+  alias Report.Report, as: ReportSchema
 
   action_fallback ReportWeb.FallbackController
 
@@ -28,13 +26,13 @@ defmodule ReportWeb.ReportController do
   Expects a JSON body with report attributes.
   """
   def create(conn, %{"report" => report_params}) do
-    with {:ok, %Report{} = report} <- Reports.create_report(report_params) do
+    with {:ok, %ReportSchema{} = report} <- Reports.create_report(report_params) do
       # Emit telemetry event for metrics
-      Telemetry.report_created(report)
+      Report.Telemetry.report_created(report)
 
       # Publish NATS event (async, don't block response)
       Task.start(fn ->
-        NatsPublisher.publish_report_created(report)
+        Report.NatsPublisher.publish_report_created(report)
       end)
 
       conn

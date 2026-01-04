@@ -11,7 +11,7 @@ defmodule Report.PromEx.ReportPlugin do
   use PromEx.Plugin
 
   @impl true
-  def polling_metrics(poll_rate) do
+  def polling_metrics(_poll_rate) do
     [
       # No polling metrics needed for now
       # Could add DB stats here if needed
