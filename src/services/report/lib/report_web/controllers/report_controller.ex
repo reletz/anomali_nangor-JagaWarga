@@ -46,7 +46,7 @@ defmodule ReportWeb.ReportController do
       nil ->
         conn
         |> put_status(:not_found)
-        |> json(${error: "Report not found"})
+        |> json(%{error: "Report not found"})
       report ->
         render(conn, :show, report: report)
   end
