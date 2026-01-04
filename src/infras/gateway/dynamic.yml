@@ -81,11 +81,10 @@ http:
 
   services:
     frontend-service:
-      loadBalancer:
-        servers:
-          - url: "http://frontend:5000"
+        loadBalancer:
+          servers:
+            - url: "http://frontend:5000"
 
-  services:
     anonymizer-service:
       loadBalancer:
         servers:
