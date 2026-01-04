@@ -1,5 +1,8 @@
 import Config
 
+# Mark as test environment for auth bypass
+config :report, env: :test
+
 # Configure your database
 #
 # The MIX_TEST_PARTITION environment variable can be used

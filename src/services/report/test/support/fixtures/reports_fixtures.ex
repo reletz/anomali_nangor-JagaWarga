@@ -36,7 +36,7 @@ defmodule Report.ReportsFixtures do
         privacy_level: "private",
         authority_department: "keamanan",
         status: "submitted",
-        reporter_id: "test-reporter-#{:rand.uniform(1000)}"
+        reporter_id: Ecto.UUID.generate()
       })
       |> Report.Reports.create_report()
 

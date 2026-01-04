@@ -8,17 +8,53 @@ defmodule ReportWeb.Plugs.AuthPlug do
   def init(opts), do: opts
 
   def call(conn, _opts) do
-    with {:ok, token} <- get_token_from_header(conn),
-         {:ok, user} <- validate_token(token) do
-      assign(conn, :current_user, user)
+    # Bypass auth in test mode if already assigned (for testing)
+    if conn.assigns[:current_user] do
+      conn
     else
-      {:error, reason} ->
-        Logger.warning("Authentication failed: #{reason}")
+      # Check for test auth headers (only in test env)
+      case check_test_auth(conn) do
+        {:ok, user} ->
+          assign(conn, :current_user, user)
 
-        conn
-        |> put_status(:unauthorized)
-        |> json(%{error: "Unauthorized", message: reason})
-        |> halt()
+        :not_test ->
+          # Normal auth flow
+          with {:ok, token} <- get_token_from_header(conn),
+               {:ok, user} <- validate_token(token) do
+            assign(conn, :current_user, user)
+          else
+            {:error, reason} ->
+              Logger.warning("Authentication failed: #{reason}")
+
+              conn
+              |> put_status(:unauthorized)
+              |> json(%{error: "Unauthorized", message: reason})
+              |> halt()
+          end
+      end
+    end
+  end
+
+  # Check for test auth headers (only works in test environment)
+  defp check_test_auth(conn) do
+    if Application.get_env(:report, :env) == :test do
+      case get_req_header(conn, "x-test-auth") do
+        ["true"] ->
+          department = get_req_header(conn, "x-test-department") |> List.first() || "unknown"
+          user_id = get_req_header(conn, "x-test-user-id") |> List.first() || "test-user"
+
+          {:ok,
+           %{
+             "id" => user_id,
+             "department" => department,
+             "email" => "#{department}@bandung.go.id"
+           }}
+
+        _ ->
+          :not_test
+      end
+    else
+      :not_test
     end
   end
 
