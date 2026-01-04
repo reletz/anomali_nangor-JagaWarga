@@ -3,8 +3,6 @@ defmodule ReportWeb.ReportControllerTest do
 
   @moduletag :integration
 
-  import Report.ReportsFixtures
-
   alias Report.Reports
 
   @create_attrs %{
@@ -23,7 +21,7 @@ defmodule ReportWeb.ReportControllerTest do
     privacy_level: "private",
     authority_department: "keamanan",
     status: "submitted",
-    reporter_id: "test-reporter-123"
+    reporter_id: "00000000-0000-0000-0000-000000000001"
   }
 
   @anonymous_attrs %{
@@ -94,48 +92,25 @@ defmodule ReportWeb.ReportControllerTest do
       assert data["category"] == "sampah"
       assert data["content"] == "Test report content"
       assert data["privacy_level"] == "public"
-      refute Map.has_key?(data, "access_token")
     end
 
-    test "creates private report and returns access_token", %{conn: conn} do
+    test "creates private report", %{conn: conn} do
       conn = post(conn, ~p"/api/reports", report: @private_attrs)
       assert %{"data" => data} = json_response(conn, 201)
 
       assert data["privacy_level"] == "private"
-      assert data["access_token"] != nil
-      assert data["tracking_url"] != nil
-      assert String.contains?(data["message"], "Save this access token")
     end
 
-    test "creates anonymous report without access_token", %{conn: conn} do
+    test "creates anonymous report", %{conn: conn} do
       conn = post(conn, ~p"/api/reports", report: @anonymous_attrs)
       assert %{"data" => data} = json_response(conn, 201)
 
       assert data["privacy_level"] == "anonymous"
-      refute Map.has_key?(data, "access_token")
-      refute Map.has_key?(data, "tracking_url")
     end
 
     test "renders errors when data is invalid", %{conn: conn} do
       conn = post(conn, ~p"/api/reports", report: @invalid_attrs)
       assert json_response(conn, 422)["errors"] != %{}
-    end
-  end
-
-  describe "track/2 - Track private report via access token" do
-    setup [:create_private_report]
-
-    test "returns report with valid access token", %{conn: conn, private_report: report} do
-      conn = get(conn, ~p"/api/reports/track/#{report.access_token}")
-      assert %{"data" => data} = json_response(conn, 200)
-
-      assert data["id"] == report.id
-      assert data["content"] == report.content
-    end
-
-    test "returns 404 with invalid access token", %{conn: conn} do
-      conn = get(conn, ~p"/api/reports/track/invalid-token-123")
-      assert %{"error" => "Report not found"} = json_response(conn, 404)
     end
   end
 
@@ -179,12 +154,13 @@ defmodule ReportWeb.ReportControllerTest do
       assert data["content"] == report.content
     end
 
-    test "denies access to report from other department", %{conn: conn} do
+    test "denies access to private report from other department", %{conn: conn} do
+      # Private/anonymous reports should only be accessible by assigned department
       {:ok, other_report} =
         Reports.create_report(%{
           category: "kesehatan",
           content: "Health report",
-          privacy_level: "public",
+          privacy_level: "private",
           authority_department: "kesehatan",
           status: "submitted"
         })
@@ -209,11 +185,6 @@ defmodule ReportWeb.ReportControllerTest do
       private_report: private_report,
       anonymous_report: anonymous_report
     }
-  end
-
-  defp create_private_report(_) do
-    {:ok, private_report} = Reports.create_report(@private_attrs)
-    %{private_report: private_report}
   end
 
   defp authenticate(%{conn: conn}) do
