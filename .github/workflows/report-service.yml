@@ -302,6 +302,14 @@ jobs:
           
           echo "Waiting for report-service to restart..."
           sleep 10
+          
+          echo "Running migrations..."
+          docker compose exec -T report-service mix ecto.migrate || {
+            echo "Migration failed, checking logs..."
+            docker compose logs report-service
+            exit 1
+          }
+          echo "Migrations completed successfully"
 
       - name: Wait for services to be healthy
         run: |
