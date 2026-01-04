@@ -1,24 +1,24 @@
 import axios from 'axios'
 
-// Base API client (points to Traefik gateway)
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+
 export const apiClient = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL,
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
   timeout: 10000,
 })
 
-// Request interceptor: Add JWT token to all requests
 apiClient.interceptors.request.use(
   (config) => {
-    // Get token from localStorage
-    const token = localStorage.getItem('auth_token')
-    
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('auth_token')
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`
+      }
     }
-    
+
     return config
   },
   (error) => {
@@ -26,21 +26,32 @@ apiClient.interceptors.request.use(
   }
 )
 
-// Response interceptor: Handle 401 errors
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log(`✅ ${response.config.url} (${response.status})`)
+    return response
+  },
   (error) => {
     if (error.response?.status === 401) {
-      // Token expired or invalid
-      localStorage.removeItem('auth_token')
-      localStorage.removeItem('user')
-      
-      // Redirect to login
       if (typeof window !== 'undefined') {
-        window.location.href = '/login'
+        localStorage.removeItem('auth_token')
+        localStorage.removeItem('user')
+        
+        if (!window.location.pathname.includes('/login')) {
+          window.location.href = '/login'
+        }
       }
     }
     
     return Promise.reject(error)
   }
 )
+
+export const getServiceUrl = (service: 'identity' | 'reports' | 'anonymizer') => {
+  const paths = {
+    identity: '/identity',
+    reports: '/reports',
+    anonymizer: '/anonymizer',
+  }
+  return `${API_BASE_URL}${paths[service]}`
+}
