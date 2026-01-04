@@ -232,6 +232,9 @@ jobs:
           mkdir -p certs
           echo "${{ secrets.COCKROACH_AES_KEY }}" | base64 -d > certs/aes-256.key
           chmod 600 certs/aes-256.key
+          # Debug: verify key file
+          echo "Key file size: $(wc -c < certs/aes-256.key) bytes"
+          ls -la certs/
 
       - name: Build Docker image
         run: |
@@ -246,7 +249,22 @@ jobs:
       - name: Wait for DB to be ready
         run: |
           echo "Waiting for CockroachDB..."
+          # First check container status
+          echo "Container status:"
+          docker compose ps
+          echo ""
+          echo "DB container logs:"
+          docker compose logs db --tail=50
+          echo ""
+          
           for i in {1..30}; do
+            # Check if container is still running
+            if ! docker compose ps db | grep -q "Up"; then
+              echo "DB container crashed! Full logs:"
+              docker compose logs db
+              exit 1
+            fi
+            
             if docker compose exec -T db /cockroach/cockroach sql --insecure -e "SELECT 1" 2>/dev/null; then
               echo "CockroachDB is ready!"
               break
