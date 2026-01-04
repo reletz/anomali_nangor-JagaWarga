@@ -224,6 +224,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup CockroachDB encryption key
+        run: |
+          mkdir -p certs
+          echo "${{ secrets.COCKROACH_AES_KEY }}" | base64 -d > certs/aes-256.key
+
       - name: Build Docker image
         run: |
           docker build -t report-service:test ./src/services/report
