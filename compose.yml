@@ -76,6 +76,9 @@ services:
     build:
       context: ./src/frontend
       dockerfile: Dockerfile
+      args:
+        # Local compose has no same-origin proxy; call Traefik directly.
+        NEXT_PUBLIC_API_URL: http://localhost:8000
     container_name: jagawarga-frontend
     restart: unless-stopped
     environment:
