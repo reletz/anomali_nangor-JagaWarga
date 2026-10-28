@@ -54,12 +54,14 @@ async function withRetry<T>(
 }
 
 const app = new Elysia()
+  .get('/live', () => ({ status: 'ok' }))
   // Health check endpoint
   .get('/health', async ({ set }) => {
     const end = httpDuration.startTimer({ method: 'GET', route: '/health' });
     try {
       const dbOk = await testConnection();
       const natsOk = nc && !nc.isClosed();
+      if (!dbOk || !natsOk) set.status = 503;
 
       httpRequests.inc({ method: 'GET', route: '/health', status: '200' });
       end();
@@ -207,7 +209,8 @@ process.on('SIGTERM', async () => {
   
   console.log('\n SIGTERM received, shutting down gracefully...');
   try {
-    app.stop();
+    await app.stop();
+    await closeNatsConnection();
     await sql.end();
     console.log('Graceful shutdown complete');
     process.exit(0);
@@ -223,7 +226,8 @@ process.on('SIGINT', async () => {
   
   console.log('\n SIGINT received, shutting down gracefully...');
   try {
-    app.stop();
+    await app.stop();
+    await closeNatsConnection();
     await sql.end();
     console.log('Graceful shutdown complete');
     process.exit(0);

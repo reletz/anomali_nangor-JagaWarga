@@ -7,3 +7,12 @@ docs/tex/build/*
 *.pfx
 node_modules/
 GEMINI.md
+**/dist/
+**/.next/
+**/tsconfig.tsbuildinfo
+oci/
+releases/
+dev-update.json
+dev-update.env
+
+__pycache__/

@@ -1,0 +1,6 @@
+deps
+_build
+.git
+.env
+.env.*
+test

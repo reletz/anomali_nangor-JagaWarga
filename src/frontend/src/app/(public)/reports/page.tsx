@@ -2,18 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { reportsApi } from '@/lib/api/reports'
-import type { Report, Category, ReportStatus } from '@/lib/types/report'
+import type { Report } from '@/lib/types/report'
 import ReportList from '@/components/reports/ReportList'
 import { CATEGORIES } from '@/lib/types/report'
-import { Filter, Trash2, Shield, Heart, Wrench } from 'lucide-react'
-
-// Category icons using Lucide
-const CATEGORY_ICONS: Record<Category, React.ReactNode> = {
-  sampah: <Trash2 className="w-4 h-4" />,
-  keamanan: <Shield className="w-4 h-4" />,
-  kesehatan: <Heart className="w-4 h-4" />,
-  infrastruktur: <Wrench className="w-4 h-4" />,
-}
+import { Filter } from 'lucide-react'
 
 export default function PublicReportsPage() {
   const [reports, setReports] = useState<Report[]>([])
@@ -25,23 +17,26 @@ export default function PublicReportsPage() {
   })
 
   useEffect(() => {
-    loadReports()
+    let active = true
+    reportsApi.getPublicReports(filters).then(
+      data => {
+        if (active) {
+          setReports(data)
+          setError(null)
+          setIsLoading(false)
+        }
+      },
+      err => {
+        if (active) {
+          console.error('Load reports error:', err)
+          setError('Gagal memuat laporan')
+          setIsLoading(false)
+        }
+      },
+    )
+    return () => { active = false }
   }, [filters])
 
-  const loadReports = async () => {
-    setIsLoading(true)
-    setError(null)
-
-    try {
-      const data = await reportsApi.getPublicReports(filters)
-      setReports(data)
-    } catch (err: any) {
-      console.error('Load reports error:', err)
-      setError('Gagal memuat laporan')
-    } finally {
-      setIsLoading(false)
-    }
-  }
 
   return (
     <div className="min-h-screen bg-gray-50 py-12">

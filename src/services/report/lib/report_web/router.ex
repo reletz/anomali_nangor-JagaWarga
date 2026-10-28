@@ -18,6 +18,7 @@ defmodule ReportWeb.Router do
 
   # Health check endpoint (no pipeline needed)
   scope "/", ReportWeb do
+    get "/live", HealthController, :live
     get "/health", HealthController, :index
   end
 

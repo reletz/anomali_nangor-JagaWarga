@@ -68,18 +68,13 @@ defmodule ReportWeb.Plugs.AuthPlug do
 
   defp validate_token(token) do
     url = "#{@identity_service_url}/validate"
-    headers = [{"Authorization", "Bearer #{token}"}, {"Content-Type", "application/json"}]
 
-    case :httpc.request(:get, {String.to_charlist(url), headers}, [], body_format: :binary) do
-      {:ok, {{_, 200, _}, _headers, body}} ->
-        case Jason.decode(body) do
-          {:ok, %{"user" => user}} -> {:ok, user}
-          {:ok, response} -> {:error, "Invalid response format: #{inspect(response)}"}
-          {:error, _} -> {:error, "Failed to decode response"}
-        end
+    case Req.post(url, json: %{token: token}, receive_timeout: 5_000, retry: false) do
+      {:ok, %{status: 200, body: %{"user" => user}}} ->
+        {:ok, user}
 
-      {:ok, {{_, status, _}, _headers, body}} ->
-        Logger.warning("Identity service returned #{status}: #{body}")
+      {:ok, %{status: status}} ->
+        Logger.warning("Identity service returned #{status}")
         {:error, "Invalid or expired token"}
 
       {:error, reason} ->

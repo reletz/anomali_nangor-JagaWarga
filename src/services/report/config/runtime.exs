@@ -34,12 +34,24 @@ if config_env() == :prod do
   maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
 
   config :report, Report.Repo,
-    # ssl: true,
+    # CockroachDB does not implement PostgreSQL LOCK TABLE migration locks.
+    migration_lock: nil,
+    ssl: System.get_env("DB_SSL") == "true",
+    ssl_opts: [
+      verify: :verify_peer,
+      cacertfile: System.get_env("DB_CA_FILE", "/certs/ca.crt"),
+      server_name_indication: String.to_charlist(System.get_env("DB_HOST", "db")),
+      customize_hostname_check: [match_fun: :public_key.pkix_verify_hostname_match_fun(:https)]
+    ],
     url: database_url,
     pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
     # For machines with several cores, consider starting multiple pools of `pool_size`
     # pool_count: 4,
     socket_options: maybe_ipv6
+
+  config :report, Report.NatsPublisher,
+    url: System.get_env("NATS_URL", "nats://mb:4222"),
+    enabled: true
 
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you

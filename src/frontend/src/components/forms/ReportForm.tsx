@@ -1,4 +1,5 @@
 'use client'
+import { apiErrorMessage } from '@/lib/api/error'
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -6,14 +7,7 @@ import { toast } from 'sonner'
 import type { CreateReportRequest, Category, PrivacyLevel } from '@/lib/types/report'
 import { CATEGORIES, PRIVACY_LEVELS } from '@/lib/types/report'
 import { reportsApi } from '@/lib/api/reports'
-import { Send, Trash2, Shield, Heart, Wrench } from 'lucide-react'
-
-const CATEGORY_ICONS: Record<Category, React.ReactNode> = {
-  sampah: <Trash2 className="w-5 h-5" />,
-  keamanan: <Shield className="w-5 h-5" />,
-  kesehatan: <Heart className="w-5 h-5" />,
-  infrastruktur: <Wrench className="w-5 h-5" />,
-}
+import { Send } from 'lucide-react'
 
 export default function ReportForm() {
   const router = useRouter()
@@ -49,9 +43,9 @@ export default function ReportForm() {
       
       toast.success('Laporan berhasil dikirim!')
       router.push('/reports')
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Submit error:', err)
-      toast.error(err.response?.data?.error || 'Gagal mengirim laporan')
+      toast.error(apiErrorMessage(err, 'Gagal mengirim laporan'))
     } finally {
       setIsSubmitting(false)
     }

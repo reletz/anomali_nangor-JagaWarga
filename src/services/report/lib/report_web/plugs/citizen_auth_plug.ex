@@ -17,7 +17,7 @@ defmodule ReportWeb.Plugs.CitizenAuthPlug do
         |> halt()
 
       # User has department field = Authority (wrong type)
-      Map.has_key?(current_user, "department") ->
+      current_user["role"] == "authority" or not is_nil(current_user["department"]) ->
         Logger.warning("Authority tried to access citizen endpoint: #{current_user["email"]}")
 
         conn

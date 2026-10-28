@@ -1,0 +1,167 @@
+workflow:
+  auto_cancel: {on_new_commit: interruptible}
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_COMMIT_REF_PROTECTED == "true"'
+      variables: {XOPS_JOB_RUNNER: xops-trusted}
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+stages: [lint, test, security, build, image-scan, publish, gitops, verify]
+variables:
+  XOPS_JOB_RUNNER: xops-untrusted
+  XOPS_REGISTRY: "192.168.0.173:5000"
+  XOPS_REGISTRY_IMAGE: "192.168.0.173:5000/if4054-2026-t1-13523069-13523098-13523149/application"
+default:
+  tags: ["$XOPS_JOB_RUNNER"]
+  interruptible: true
+
+frontend-lint:
+  stage: lint
+  image: oven/bun:1.4.4
+  script:
+    - cd src/frontend
+    - bun install --frozen-lockfile
+    - bun run lint
+    - bunx tsc --noEmit
+
+bun-tests:
+  stage: test
+  image: oven/bun:1.4.4
+  script:
+    - bun install --cwd src/services/identity --frozen-lockfile
+    - bun install --cwd src/services/anonymizer --frozen-lockfile
+    - bun test src/services/anonymizer/pii-scrubber.test.ts ci/bun-smoke.test.ts
+
+report-unit:
+  stage: test
+  image: hexpm/elixir:1.18.4-erlang-27.3.4.16-debian-bookworm-20260824-slim
+  variables: {MIX_ENV: test, START_REPO: "false", ERL_FLAGS: "+S 2:2"}
+  script:
+    - cd src/services/report
+    - mix local.hex --force
+    - mix local.rebar --force
+    - mix deps.get
+    - mix compile --warnings-as-errors
+    - mix format --check-formatted
+    - mix test --exclude db --exclude integration
+
+report-integration:
+  stage: test
+  image: hexpm/elixir:1.18.4-erlang-27.3.4.16-debian-bookworm-20260824-slim
+  services:
+    - name: cockroachdb/cockroach:v24.3.15
+      alias: db
+      entrypoint: ["/cockroach/cockroach"]
+      command: [start-single-node, --insecure, "--listen-addr=0.0.0.0:26257"]
+  variables:
+    MIX_ENV: test
+    START_REPO: "true"
+    DB_HOST: db
+    DB_PORT: "26257"
+    DB_NAME: report_test
+    ERL_FLAGS: "+S 2:2"
+  script:
+    - cd src/services/report
+    - mix local.hex --force
+    - mix local.rebar --force
+    - mix deps.get
+    - mix ecto.create
+    - mix ecto.migrate
+    - mix test --include db
+
+secret-scan:
+  stage: security
+  image: {name: zricethezav/gitleaks:v8.24.2, entrypoint: [""]}
+  script:
+    - gitleaks dir . --redact --exit-code 1
+
+dependency-scan:
+  stage: security
+  image: {name: aquasec/trivy:0.76.1, entrypoint: [""]}
+  script:
+    - trivy fs --scanners vuln --severity HIGH,CRITICAL --exit-code 1 .
+
+.services:
+  parallel:
+    matrix:
+      - SERVICE: frontend
+        CONTEXT: src/frontend
+        DOCKERFILE_DIR: src/frontend
+      - SERVICE: identity-service
+        CONTEXT: .
+        DOCKERFILE_DIR: src/services/identity
+      - SERVICE: anonymizer-service
+        CONTEXT: .
+        DOCKERFILE_DIR: src/services/anonymizer
+      - SERVICE: report-service
+        CONTEXT: src/services/report
+        DOCKERFILE_DIR: src/services/report
+
+build-images:
+  extends: .services
+  stage: build
+  image: {name: moby/buildkit:v0.21.1-rootless, entrypoint: [""]}
+  variables:
+    BUILDKITD_FLAGS: --oci-worker-no-process-sandbox
+  script:
+    - mkdir -p oci
+    - buildctl-daemonless.sh build --frontend dockerfile.v0 --local context="$CI_PROJECT_DIR/$CONTEXT" --local dockerfile="$CI_PROJECT_DIR/$DOCKERFILE_DIR" --output type=oci,dest="oci/$SERVICE.tar"
+  artifacts:
+    paths: [oci/]
+    expire_in: 1 day
+
+image-scan:
+  extends: .services
+  stage: image-scan
+  image: {name: aquasec/trivy:0.76.1, entrypoint: [""]}
+  needs: [build-images]
+  script:
+    - trivy image --input "oci/$SERVICE.tar" --severity HIGH,CRITICAL --exit-code 1
+
+publish-images:
+  extends: .services
+  stage: publish
+  tags: [xops-trusted]
+  image: {name: quay.io/skopeo/stable:v1.18.0, entrypoint: [""]}
+  needs: [build-images, image-scan]
+  resource_group: publish-$SERVICE
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_COMMIT_REF_PROTECTED == "true"'
+  script:
+    - mkdir -p releases
+    - test -s "$XOPS_REGISTRY_CA"
+    - mkdir -p "/etc/containers/certs.d/$XOPS_REGISTRY"
+    - cp "$XOPS_REGISTRY_CA" "/etc/containers/certs.d/$XOPS_REGISTRY/ca.crt"
+    - printf '%s' "$XOPS_REGISTRY_PASSWORD" | skopeo login --username "$XOPS_REGISTRY_USER" --password-stdin "$XOPS_REGISTRY"
+    - skopeo copy --preserve-digests "oci-archive:oci/$SERVICE.tar" "docker://$XOPS_REGISTRY_IMAGE/$SERVICE:$CI_COMMIT_SHA"
+    - skopeo copy --preserve-digests "docker://$XOPS_REGISTRY_IMAGE/$SERVICE:$CI_COMMIT_SHA" "docker://$XOPS_REGISTRY_IMAGE/$SERVICE:latest"
+    - DIGEST=$(skopeo inspect --format '{{.Digest}}' "docker://$XOPS_REGISTRY_IMAGE/$SERVICE:$CI_COMMIT_SHA")
+    - printf '{"repository":"%s","digest":"%s"}\n' "$XOPS_REGISTRY_IMAGE/$SERVICE" "$DIGEST" > "releases/$SERVICE.json"
+  artifacts:
+    paths: [releases/]
+    expire_in: 7 days
+
+update-dev:
+  stage: gitops
+  image: python:3.12.10-alpine3.21
+  tags: [xops-trusted]
+  interruptible: false
+  resource_group: gitops-dev
+  needs: [publish-images]
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_COMMIT_REF_PROTECTED == "true"'
+  script:
+    - python ci/update_gitops.py
+  artifacts:
+    paths: [dev-update.json]
+    reports: {dotenv: dev-update.env}
+    expire_in: 7 days
+
+verify-dev-and-request-promotion:
+  stage: verify
+  image: python:3.12.10-alpine3.21
+  tags: [xops-trusted]
+  needs: [update-dev]
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_COMMIT_REF_PROTECTED == "true"'
+  script:
+    - python ci/trigger_infra.py

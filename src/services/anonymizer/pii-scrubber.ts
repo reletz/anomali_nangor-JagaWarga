@@ -81,6 +81,8 @@ export function scrubPII(text: string): ScrubResult {
 
 // Additional utility: Check if text contains potential PII
 export function containsPII(text: string): boolean {
+  // Global regexes retain lastIndex after test(); reset before each call.
+  Object.values(PII_PATTERNS).forEach(pattern => { pattern.lastIndex = 0; });
   return (
     PII_PATTERNS.nik.test(text) ||
     PII_PATTERNS.phone.test(text) ||

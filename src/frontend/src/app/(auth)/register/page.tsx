@@ -1,4 +1,5 @@
 'use client'
+import { apiErrorMessage } from '@/lib/api/error'
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -25,9 +26,9 @@ export default function RegisterPage() {
       
       toast.success('Pendaftaran berhasil! Silakan login dengan NIK Anda.')
       router.push('/login')
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Register error:', err)
-      toast.error(err.response?.data?.error || 'Pendaftaran gagal. Coba lagi.')
+      toast.error(apiErrorMessage(err, 'Pendaftaran gagal. Coba lagi.'))
     } finally {
       setIsSubmitting(false)
     }

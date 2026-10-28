@@ -1,5 +1,10 @@
 http:
   routers:
+    frontend:
+      rule: "PathPrefix(`/`)"
+      service: frontend
+      entryPoints: [web]
+      priority: 1
     anonymizer:
       rule: "PathPrefix(`/anonymizer`)"
       service: anonymizer-service
@@ -63,6 +68,10 @@ http:
         addVaryHeader: true
 
   services:
+    frontend:
+      loadBalancer:
+        servers:
+          - url: "http://frontend:5000"
     anonymizer-service:
       loadBalancer:
         servers:

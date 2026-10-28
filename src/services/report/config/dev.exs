@@ -27,7 +27,7 @@ config :report, ReportWeb.Endpoint,
   check_origin: false,
   code_reloader: true,
   debug_errors: true,
-  secret_key_base: "gMt00wK5P6WaLYJ+ZFHWEid9mrQMZ5eZI/QYemFlphiiVJAoX5HhE5fm7aQQIaRp",
+  secret_key_base: String.duplicate("development-only-", 8),
   watchers: []
 
 # ## SSL Support

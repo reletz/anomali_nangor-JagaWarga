@@ -23,6 +23,7 @@ export const authApi = {
     
     if (response.data.token) {
       localStorage.setItem('auth_token', response.data.token)
+      document.cookie = `auth_token=${encodeURIComponent(response.data.token)}; Path=/; SameSite=Lax; Max-Age=86400${location.protocol === 'https:' ? '; Secure' : ''}`
       localStorage.setItem('user', JSON.stringify({ ...response.data.user, role: 'citizen' }))
     }
     
@@ -35,6 +36,7 @@ export const authApi = {
     
     if (response.data.token) {
       localStorage.setItem('auth_token', response.data.token)
+      document.cookie = `auth_token=${encodeURIComponent(response.data.token)}; Path=/; SameSite=Lax; Max-Age=86400${location.protocol === 'https:' ? '; Secure' : ''}`
       localStorage.setItem('user', JSON.stringify({ ...response.data.user, role: 'authority' }))
     }
     
@@ -43,6 +45,7 @@ export const authApi = {
 
   // Logout
   logout: () => {
+    document.cookie = 'auth_token=; Path=/; SameSite=Lax; Max-Age=0'
     localStorage.removeItem('auth_token')
     localStorage.removeItem('user')
   },

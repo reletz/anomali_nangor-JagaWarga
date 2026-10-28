@@ -1,11 +1,15 @@
 import { Elysia } from 'elysia';
 import { jwt } from '@elysiajs/jwt';
 import { sql, testConnection } from '../shared/db';
-import { getNatsConnection } from '../shared/nats';
+import { getNatsConnection, closeNatsConnection } from '../shared/nats';
 import client from 'prom-client';
 
 const PORT = process.env.IDENTITY_PORT || process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-change-in-production';
+const LOGIN_PASSWORD = process.env.DEMO_LOGIN_PASSWORD || 'password123';
+if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || !process.env.DEMO_LOGIN_PASSWORD)) {
+  throw new Error('JWT_SECRET and DEMO_LOGIN_PASSWORD are required in production');
+}
 
 const register = new client.Registry();
 register.setDefaultLabels({ service: 'identity' });
@@ -46,6 +50,7 @@ async function withRetry<T>(
 }
 
 const app = new Elysia()
+  .get('/live', () => ({ status: 'ok' }))
   .use(
     jwt({
       name: 'jwt',
@@ -59,6 +64,7 @@ const app = new Elysia()
       const dbOk = await testConnection();
       const natsConnection = await getNatsConnection();
       const natsOk = !natsConnection.isClosed();
+      if (!dbOk || !natsOk) set.status = 503;
 
       httpRequests.inc({ method: 'GET', route: '/health', status: '200' });
       end();
@@ -219,7 +225,7 @@ const app = new Elysia()
       }
 
       // Hardcoded password check
-      if (password !== 'password123') {
+      if (password !== LOGIN_PASSWORD) {
         set.status = 401;
         httpRequests.inc({ method: 'POST', route: '/login', status: '401' });
         end();
@@ -284,7 +290,7 @@ const app = new Elysia()
         return { error: 'Invalid credentials' };
       }
 
-      if (password !== 'password123') {
+      if (password !== LOGIN_PASSWORD) {
         set.status = 401;
         httpRequests.inc({ method: 'POST', route: '/login/authority', status: '401' });
         end();
@@ -338,7 +344,8 @@ process.on('SIGTERM', async () => {
   
   console.log('\n SIGTERM received, shutting down gracefully...');
   try {
-    app.stop();
+    await app.stop();
+    await closeNatsConnection();
     await sql.end();
     console.log('Graceful shutdown complete');
     process.exit(0);
@@ -354,7 +361,8 @@ process.on('SIGINT', async () => {
   
   console.log('\n SIGINT received, shutting down gracefully...');
   try {
-    app.stop();
+    await app.stop();
+    await closeNatsConnection();
     await sql.end();
     console.log('Graceful shutdown complete');
     process.exit(0);

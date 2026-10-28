@@ -4,9 +4,8 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { reportsApi } from '@/lib/api/reports'
 import { useAuthStore } from '@/lib/store/authStore'
-import type { Report, ReportStatus } from '@/lib/types/report'
+import type { Report } from '@/lib/types/report'
 import ReportList from '@/components/reports/ReportList'
-import { toast } from 'sonner'
 import { FileText, AlertCircle, Clock, CheckCircle, Loader2, X } from 'lucide-react'
 
 export default function AuthorityDashboard() {
@@ -32,23 +31,26 @@ export default function AuthorityDashboard() {
       return
     }
 
-    loadDepartmentReports()
+    let active = true
+    reportsApi.getDepartmentReports().then(
+      data => {
+        if (active) {
+          setReports(data)
+          setError(null)
+          setIsLoading(false)
+        }
+      },
+      err => {
+        if (active) {
+          console.error('Load reports error:', err)
+          setError('Gagal memuat laporan')
+          setIsLoading(false)
+        }
+      },
+    )
+    return () => { active = false }
   }, [isAuthenticated, user, router])
 
-  const loadDepartmentReports = async () => {
-    setIsLoading(true)
-    setError(null)
-
-    try {
-      const data = await reportsApi.getDepartmentReports()
-      setReports(data)
-    } catch (err: any) {
-      console.error('Load department reports error:', err)
-      setError('Gagal memuat laporan')
-    } finally {
-      setIsLoading(false)
-    }
-  }
 
   if (!isAuthenticated || !user?.department) {
     return null

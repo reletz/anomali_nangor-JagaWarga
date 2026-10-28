@@ -30,23 +30,26 @@ export default function CitizenDashboard() {
       return
     }
 
-    loadMyReports()
+    let active = true
+    reportsApi.getMyReports().then(
+      data => {
+        if (active) {
+          setReports(data)
+          setError(null)
+          setIsLoading(false)
+        }
+      },
+      err => {
+        if (active) {
+          console.error('Load reports error:', err)
+          setError('Gagal memuat laporan')
+          setIsLoading(false)
+        }
+      },
+    )
+    return () => { active = false }
   }, [isAuthenticated, user, router])
 
-  const loadMyReports = async () => {
-    setIsLoading(true)
-    setError(null)
-
-    try {
-      const data = await reportsApi.getMyReports()
-      setReports(data)
-    } catch (err: any) {
-      console.error('Load my reports error:', err)
-      setError('Gagal memuat laporan')
-    } finally {
-      setIsLoading(false)
-    }
-  }
 
   if (!isAuthenticated || user?.department) {
     return null

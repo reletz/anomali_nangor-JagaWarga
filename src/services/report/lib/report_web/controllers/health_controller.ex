@@ -1,6 +1,8 @@
 defmodule ReportWeb.HealthController do
   use ReportWeb, :controller
 
+  def live(conn, _params), do: json(conn, %{status: "ok", service: "report-service"})
+
   @doc """
   Health check endpoint.
   Returns 200 OK if the service is running.

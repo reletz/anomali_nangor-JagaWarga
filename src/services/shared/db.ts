@@ -1,4 +1,5 @@
 import postgres from 'postgres';
+import { readFileSync } from 'node:fs';
 
 // Database connection configuration
 const sql = postgres({
@@ -6,7 +7,10 @@ const sql = postgres({
   port: parseInt(process.env.DB_PORT || '26257'),
   database: process.env.DB_NAME || 'jagawargadb',
   username: process.env.DB_USER || 'root',
-  ssl: false,
+  password: process.env.DB_PASSWORD || '',
+  ssl: process.env.DB_SSL === 'true'
+    ? { rejectUnauthorized: true, ca: readFileSync(process.env.DB_CA_FILE || '/certs/ca.crt', 'utf8') }
+    : false,
   max: 10,
   idle_timeout: 20,
   connect_timeout: 10,

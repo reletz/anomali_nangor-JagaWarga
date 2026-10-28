@@ -1,4 +1,5 @@
 'use client'
+import { apiErrorMessage } from '@/lib/api/error'
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -35,9 +36,9 @@ export default function LoginPage() {
       
       toast.success('Login berhasil!')
       router.push('/dashboard/citizen')
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Login error:', err)
-      toast.error(err.response?.data?.error || 'Login gagal. Periksa NIK Anda.')
+      toast.error(apiErrorMessage(err, 'Login gagal. Periksa NIK Anda.'))
     } finally {
       setIsSubmitting(false)
     }
@@ -53,9 +54,9 @@ export default function LoginPage() {
       
       toast.success('Login berhasil!')
       router.push('/dashboard/authority')
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Login error:', err)
-      toast.error(err.response?.data?.error || 'Login gagal. Periksa email Anda.')
+      toast.error(apiErrorMessage(err, 'Login gagal. Periksa email Anda.'))
     } finally {
       setIsSubmitting(false)
     }

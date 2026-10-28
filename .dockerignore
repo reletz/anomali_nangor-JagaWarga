@@ -1,0 +1,8 @@
+.git
+**/node_modules
+**/.next
+**/deps
+**/_build
+**/.env*
+certs
+docs

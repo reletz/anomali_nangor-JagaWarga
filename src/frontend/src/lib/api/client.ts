@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? ''
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -34,11 +34,12 @@ apiClient.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       if (typeof window !== 'undefined') {
+        document.cookie = 'auth_token=; Path=/; SameSite=Lax; Max-Age=0'
         localStorage.removeItem('auth_token')
         localStorage.removeItem('user')
         
         if (!window.location.pathname.includes('/login')) {
-          window.location.href = '/login'
+          window.location.href = new URL('/login', window.location.origin).href
         }
       }
     }

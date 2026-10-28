@@ -24,7 +24,7 @@ config :report, Report.Repo,
 # you can enable the server option below.
 config :report, ReportWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 4002],
-  secret_key_base: "CgCNxhxBXdc5cnfFaJGllmAtV+QyxgecDCwdVulDelgnFJWibX9oZtbydzNwZfBY",
+  secret_key_base: String.duplicate("local-test-only-", 8),
   server: false
 
 # In test we don't send emails

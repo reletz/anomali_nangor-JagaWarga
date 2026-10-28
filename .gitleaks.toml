@@ -1,0 +1,6 @@
+title = "JagaWarga secret scan"
+[extend]
+useDefault = true
+[allowlist]
+description = "Generated build output and installed dependencies, never source or lockfiles"
+paths = ['(^|/)(node_modules|\.next|_build|deps|dist)(/|$)']
