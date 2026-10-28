@@ -4,6 +4,7 @@ Requires Docker. Uses temporary TLS CockroachDB, non-root/read-only app containe
 synthetic identities and a loopback-only gateway. Removes only its own resources.
 """
 import json
+import os
 import secrets
 import subprocess
 import time
@@ -17,6 +18,12 @@ DB_IMAGE = "cockroachdb/cockroach:v24.3.15"
 containers, volumes = [], []
 password, login_password, jwt_secret = [secrets.token_hex(32) for _ in range(3)]
 source = __import__("pathlib").Path(__file__).resolve().parents[1]
+image_prefix = os.environ.get("XOPS_TEST_IMAGE_PREFIX", "xops-local")
+image_tag = os.environ.get("XOPS_TEST_IMAGE_TAG", "validation")
+
+
+def app_image(service):
+    return image_prefix + "/" + service + ":" + image_tag
 
 
 def docker(*args, input=None):
@@ -102,11 +109,11 @@ try:
            "NATS_URL": "nats://mb:4222", "JWT_SECRET": jwt_secret, "DEMO_LOGIN_PASSWORD": login_password,
            "SECRET_KEY_BASE": secrets.token_hex(64), "PHX_SERVER": "true", "PHX_HOST": "localhost", "ERL_FLAGS": "+S 2:2"}
     extra = ["-v", PREFIX + "-app-certs:/certs:ro"]
-    report = run("report-service", "xops-local/report-service:validation", extra=extra, env=env)
+    report = run("report-service", app_image("report-service"), extra=extra, env=env)
     docker("exec", report, "/app/bin/report", "eval", "Report.Release.migrate()")
-    run("identity-service", "xops-local/identity-service:validation", extra=extra, env=env)
-    run("anonymizer-service", "xops-local/anonymizer-service:validation", extra=extra, env=env)
-    run("frontend", "xops-local/frontend:validation",
+    run("identity-service", app_image("identity-service"), extra=extra, env=env)
+    run("anonymizer-service", app_image("anonymizer-service"), extra=extra, env=env)
+    run("frontend", app_image("frontend"),
         extra=["--tmpfs", "/app/.next/cache:uid=1000,gid=1000,mode=0700"],
         env={"NODE_ENV": "production", "PORT": "5000", "HOSTNAME": "0.0.0.0"})
     gateway = run("gateway", "traefik:v3.4.1", ["--entrypoints.web.address=:8080", "--providers.file.filename=/etc/traefik/dynamic.yml"],

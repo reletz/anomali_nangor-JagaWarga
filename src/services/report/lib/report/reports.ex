@@ -165,17 +165,11 @@ defmodule Report.Reports do
   Updates a report status to 'escalated'.
   """
   def escalate_report(%Report{} = report) do
-    now = DateTime.utc_now() |> DateTime.truncate(:second)
-
-    query =
-      from(r in Report,
-        where: r.id == ^report.id and r.status == "submitted",
-        select: r
-      )
-
-    case Repo.update_all(query, set: [status: "escalated", escalated_at: now, updated_at: now]) do
-      {1, [updated]} -> {:ok, updated}
-      {0, _} -> {:error, :already_escalated}
-    end
+    report
+    |> Report.changeset(%{
+      status: "escalated",
+      escalated_at: DateTime.utc_now() |> DateTime.truncate(:second)
+    })
+    |> Repo.update()
   end
 end

@@ -198,13 +198,10 @@ defmodule Report.EscalationWorker do
 
         :ok
 
-      {:error, :already_escalated} ->
-        :already_escalated
-
       {:error, changeset} ->
         Logger.error("""
         [EscalationWorker] Failed to escalate report #{report.id}
-          - Errors: #{inspect(changeset)}
+          - Errors: #{inspect(changeset.errors)}
         """)
 
         :error

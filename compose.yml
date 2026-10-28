@@ -1,101 +1,209 @@
-# Local development only. Kubernetes desired state belongs to infrastructure/gitops.
-x-runtime: &runtime
-  DB_HOST: db
-  DB_PORT: "26257"
-  DB_NAME: jagawargadb
-  DB_USER: root
-  DB_SSL: "false"
-  DATABASE_URL: ecto://root@db:26257/jagawargadb
-  NATS_URL: nats://mb:4222
-  SECRET_KEY_BASE: ${SECRET_KEY_BASE:?Set SECRET_KEY_BASE in .env}
-  JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
-  DEMO_LOGIN_PASSWORD: ${DEMO_LOGIN_PASSWORD:?Set DEMO_LOGIN_PASSWORD in .env}
-  ERL_FLAGS: "+S 2:2"
-
 services:
   db:
-    image: cockroachdb/cockroach:v24.3.15
-    entrypoint: [/cockroach/cockroach]
-    command: [start-single-node, --insecure, --store=/cockroach/cockroach-data, --cache=128MiB, --max-sql-memory=128MiB]
-    volumes: [db-data:/cockroach/cockroach-data]
+    image: cockroachdb/cockroach:latest
+    container_name: jagawarga-db
+    ports: 
+      - "26257:26257" # for functionalities
+      - "8080:8080"   # for monitoring
+    command: >
+      start-single-node --insecure
+      --enterprise-encryption=path=/cockroach/cockroach-data,key=/certs/aes-256.key,old-key=plain
+    networks:
+      - jagawarga-net
     healthcheck:
-      test: [CMD, /cockroach/cockroach, sql, --insecure, -e, SELECT 1]
+      test: ["CMD", "/cockroach/cockroach", "node", "status", "--insecure"]
       interval: 5s
       timeout: 5s
-      retries: 30
-  schema-init:
-    image: cockroachdb/cockroach:v24.3.15
-    entrypoint: [/bin/sh, -ec]
-    command: ["/cockroach/cockroach sql --insecure --host=db < /schema/init.sql && /cockroach/cockroach sql --insecure --host=db < /schema/seed.sql"]
-    volumes: [./src/infras/db:/schema:ro]
-    depends_on:
-      db: {condition: service_healthy}
+      retries: 5
+      start_period: 10s
+    volumes:
+      - db-data:/cockroach/cockroach-data
+      - "./certs:/certs:ro"
+
   mb:
-    image: nats:2.11.3-alpine
-    command: [-js, -sd, /data, -m, "8222"]
-    volumes: [nats-data:/data]
+    image: nats:alpine
+    container_name: jagawarga-mb
+    command: "-js -m 8222"
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    volumes:
+      - nats-data:/data
+    networks:
+      - jagawarga-net
     healthcheck:
-      test: [CMD, wget, -q, --spider, http://localhost:8222/healthz]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8222/healthz"]
       interval: 5s
       timeout: 3s
-      retries: 20
-  gateway:
-    image: traefik:v3.4.1
-    ports: ["127.0.0.1:8000:80"]
+      retries: 3
+  
+  nats-exporter:
+    image: natsio/prometheus-nats-exporter:latest
+    container_name: jagawarga-nats-exporter
     command:
-      - --entrypoints.web.address=:80
-      - --providers.file.filename=/etc/traefik/dynamic.yml
-      - --api.dashboard=false
-    volumes: [./src/infras/gateway/dynamic.yml:/etc/traefik/dynamic.yml:ro]
-    depends_on: [frontend, identity-service, anonymizer-service, report-service]
+      - "-varz"
+      - "http://mb:8222"
+    ports:
+      - "7777:7777"
+    networks:
+      - jagawarga-net
+    depends_on:
+      - mb
+  
+  gateway:
+    image: traefik:latest
+    container_name: jagawarga-gateway
+    ports:
+      - "8000:80"   # for functionalies
+      - "58000:443"
+      - "8081:8081" # for monitoring
+    command: 
+      - "--api.insecure=true"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--providers.docker=true"
+      - "--providers.file.directory=/etc/traefik/dynamic"
+      - "--metrics.prometheus=true"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - nats-data:/data
+      - "./certs:/certs:ro"
+      - "./src/infras/gateway:/etc/traefik/dynamic:ro"
+    networks:
+      - jagawarga-net
+  
   frontend:
-    build: {context: ./src/frontend}
-    environment: {NODE_ENV: production, PORT: "5000", HOSTNAME: 0.0.0.0}
-    read_only: true
-    tmpfs: [/tmp, /app/.next/cache]
-    security_opt: [no-new-privileges:true]
-    cap_drop: [ALL]
+    build:
+      context: ./src/frontend
+      dockerfile: Dockerfile
+    container_name: jagawarga-frontend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+    ports:
+      - "5000:5000"
+    networks:
+      - jagawarga-net
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:5000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
   identity-service:
-    build: {context: ., dockerfile: src/services/identity/Dockerfile}
-    environment: *runtime
-    read_only: true
-    tmpfs: [/tmp]
-    security_opt: [no-new-privileges:true]
-    cap_drop: [ALL]
+    build:
+      context: .
+      dockerfile: src/services/identity/Dockerfile
+    container_name: jagawarga-identity
     depends_on:
-      schema-init: {condition: service_completed_successfully}
-      mb: {condition: service_healthy}
+      db:
+        condition: service_healthy
+      mb:
+        condition: service_started
+    networks:
+      - jagawarga-net
+    # labels:
+    #   - "traefik.http.routers.report.rule=PathPrefix(`/identity`)"
+    #   - "traefik.http.services.identity.loadbalancer.server.port=3001"
+    environment:
+      - JWT_SECRET=${JWT_SECRET:?Set JWT_SECRET in .env}
+      - DEMO_LOGIN_PASSWORD=${DEMO_LOGIN_PASSWORD:?Set DEMO_LOGIN_PASSWORD in .env}
+      - DB_PORT=26257
+      - DB_HOST=db
+      - DB_NAME=jagawargadb
+      - NATS_URL=nats://mb:4222
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://localhost:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+  
   anonymizer-service:
-    build: {context: ., dockerfile: src/services/anonymizer/Dockerfile}
-    environment: *runtime
-    read_only: true
-    tmpfs: [/tmp]
-    security_opt: [no-new-privileges:true]
-    cap_drop: [ALL]
+    build:
+      context: .
+      dockerfile: src/services/anonymizer/Dockerfile
+    container_name: jagawarga-anonymizer
     depends_on:
-      report-service: {condition: service_started}
-      mb: {condition: service_healthy}
-  report-migrate:
-    build: {context: ./src/services/report}
-    environment: *runtime
-    command: [/app/bin/report, eval, Report.Release.migrate()]
-    read_only: true
-    tmpfs: [/tmp]
-    security_opt: [no-new-privileges:true]
-    cap_drop: [ALL]
-    depends_on:
-      schema-init: {condition: service_completed_successfully}
+      db:
+        condition: service_healthy
+      mb:
+        condition: service_started
+    networks:
+      - jagawarga-net
+    # labels:
+    #   - "traefik.http.routers.anonymizer.rule=PathPrefix(`/anonymizer`)"
+    #   - "traefik.http.services.anonymizer.loadbalancer.server.port=3002"
+    environment:
+      - DB_PORT=26257
+      - DB_HOST=db
+      - DB_NAME=jagawargadb
+      - NATS_URL=nats://mb:4222
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://localhost:3002/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
   report-service:
-    build: {context: ./src/services/report}
-    environment: *runtime
-    read_only: true
-    tmpfs: [/tmp]
-    security_opt: [no-new-privileges:true]
-    cap_drop: [ALL]
+    build: "./src/services/report/"
+    container_name: jagawarga-report
+    command: ["/bin/sh", "-ec", "/app/bin/report eval 'Report.Release.migrate()' && exec /app/bin/report start"]
     depends_on:
-      report-migrate: {condition: service_completed_successfully}
-      mb: {condition: service_healthy}
+      db:
+        condition: service_healthy
+      mb:
+        condition: service_started
+    networks:
+      - jagawarga-net
+    # labels:
+    #   - "traefik.http.routers.report.rule=PathPrefix(`/reports`)"
+    #   - "traefik.http.services.report.loadbalancer.server.port=4000"
+    environment:
+      - DATABASE_URL=ecto://root@db:26257/jagawargadb
+      - SECRET_KEY_BASE=${SECRET_KEY_BASE:?Set SECRET_KEY_BASE in .env}
+      - DB_PORT=26257
+      - DB_HOST=db
+      - DB_NAME=jagawargadb
+      - NATS_URL=nats://mb:4222
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: jagawarga-prometheus
+    volumes:
+      - "./src/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro"
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - jagawarga-net
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: jagawarga-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - "./src/monitoring/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro"
+      - "./src/monitoring/grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro"
+      - "./src/monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards/files:ro"
+      - grafana-data:/var/lib/grafana
+    networks:
+      - jagawarga-net
+    depends_on:
+      - prometheus
+    
+networks:
+  jagawarga-net:
+    driver: bridge
 
 volumes:
   db-data:
   nats-data:
+  prometheus-data:
+  grafana-data:
